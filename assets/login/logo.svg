@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f0d060"/>
+      <stop offset="50%" style="stop-color:#d4af37"/>
+      <stop offset="100%" style="stop-color:#b8941e"/>
+    </linearGradient>
+    <linearGradient id="innerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#0f0f1a"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Outer diamond shape -->
+  <polygon points="100,10 190,100 100,190 10,100" fill="url(#goldGrad)" filter="url(#glow)"/>
+
+  <!-- Inner diamond -->
+  <polygon points="100,30 170,100 100,170 30,100" fill="url(#innerGrad)"/>
+
+  <!-- Facet lines -->
+  <line x1="100" y1="30" x2="100" y2="170" stroke="#d4af37" stroke-width="0.5" opacity="0.4"/>
+  <line x1="30" y1="100" x2="170" y2="100" stroke="#d4af37" stroke-width="0.5" opacity="0.4"/>
+  <line x1="65" y1="65" x2="135" y2="135" stroke="#d4af37" stroke-width="0.3" opacity="0.3"/>
+  <line x1="135" y1="65" x2="65" y2="135" stroke="#d4af37" stroke-width="0.3" opacity="0.3"/>
+
+  <!-- Small gem accent at top -->
+  <polygon points="100,40 110,55 100,65 90,55" fill="#d4af37" opacity="0.6"/>
+
+  <!-- Text: JE -->
+  <text x="100" y="115" font-family="Georgia, serif" font-size="42" font-weight="bold"
+        fill="url(#goldGrad)" text-anchor="middle" letter-spacing="3">JE</text>
+</svg>
