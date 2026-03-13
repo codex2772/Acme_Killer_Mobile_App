@@ -1,4 +1,5 @@
 import 'package:acme_killer_mobile_app/core/constants/app_colors.dart';
+import 'package:acme_killer_mobile_app/routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
@@ -58,7 +59,7 @@ class RoleSelectScreen extends StatelessWidget {
                 features: const ["Multi Store", "Analytics", "Full Control"],
                 color: AppColors.goldPrimary,
                 onTap: () {
-                  Get.toNamed("/login", arguments: "owner");
+                  Get.offNamed(AppRoutes.login, arguments: "owner");
                 },
               ),
 

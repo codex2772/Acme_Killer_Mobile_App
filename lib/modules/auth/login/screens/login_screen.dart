@@ -1,5 +1,6 @@
 import 'package:acme_killer_mobile_app/core/constants/app_colors.dart';
 import 'package:acme_killer_mobile_app/modules/auth/login/controllers/login_controller.dart';
+import 'package:acme_killer_mobile_app/routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -105,9 +106,9 @@ class LoginScreen extends GetView<LoginController> {
                     height: 55,
                     child: Obx(
                       () => ElevatedButton(
-                        onPressed: controller.isLoading.value
-                            ? null
-                            : controller.login,
+                        onPressed: () {
+                          Get.offAllNamed(AppRoutes.dashboard);
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.goldPrimary,
                           shape: RoundedRectangleBorder(

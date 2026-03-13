@@ -1,4 +1,5 @@
 import 'package:acme_killer_mobile_app/core/constants/app_colors.dart';
+import 'package:acme_killer_mobile_app/routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
@@ -17,6 +18,7 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> progressAnimation;
   late Animation<double> fadeAnimation;
   late Animation<double> scaleAnimation;
+  late Future splashFuture;
 
   @override
   void initState() {
@@ -38,9 +40,11 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    Future.delayed(const Duration(seconds: 4), () {
-      Get.offAllNamed("/role-select");
-    });
+    splashFuture = Future.delayed(const Duration(seconds: 4), () {
+    if (mounted) {
+      Get.offAllNamed(AppRoutes.roleSelect);
+    }
+  });
   }
 
   @override

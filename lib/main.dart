@@ -1,9 +1,11 @@
+import 'package:acme_killer_mobile_app/core/controllers/store_controller.dart';
 import 'package:acme_killer_mobile_app/routes/app_pages.dart';
 import 'package:acme_killer_mobile_app/routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 void main() {
+  Get.put(StoreController(), permanent: true);
   runApp(const MainApp());
 }
 

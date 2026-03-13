@@ -1,3 +1,4 @@
+import 'package:acme_killer_mobile_app/routes/app_routes.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 
@@ -8,6 +9,6 @@ class LoginController extends GetxController {
   var isLoading = false.obs;
 
   void login() {
-    print("Login pressed");
+    Get.offAllNamed(AppRoutes.dashboard);
   }
 }
