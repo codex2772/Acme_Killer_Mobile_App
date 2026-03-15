@@ -117,13 +117,12 @@ class DashboardScreen extends GetView<DashboardController> {
                 mainAxisSpacing: 12,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  StatCard(
-                    title: "Inventory",
-                    value: controller.totalInventory.toString(),
-                    icon: Icons.inventory_2_outlined,
-                    color: AppColors.goldPrimary,
-                  ),
-
+                  // StatCard(
+                  //   title: "Inventory",
+                  //   value: controller.totalInventory.toString(),
+                  //   icon: Icons.inventory_2_outlined,
+                  //   color: AppColors.goldPrimary,
+                  // ),
                   StatCard(
                     title: "Today's Sales",
                     value: "₹${controller.todaySales}",
@@ -153,35 +152,34 @@ class DashboardScreen extends GetView<DashboardController> {
             /// =========================
             /// ALERTS
             /// =========================
-            Obx(() {
-              if (controller.lowStockItems == 0 &&
-                  controller.pendingInvoices == 0) {
-                return const SizedBox();
-              }
+            // Obx(() {
+            //   if (controller.lowStockItems == 0 &&
+            //       controller.pendingInvoices == 0) {
+            //     return const SizedBox();
+            //   }
 
-              return Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(.1),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.warning_amber_rounded, color: Colors.red),
+            //   return Container(
+            //     padding: const EdgeInsets.all(14),
+            //     decoration: BoxDecoration(
+            //       color: Colors.red.withOpacity(.1),
+            //       borderRadius: BorderRadius.circular(14),
+            //     ),
+            //     child: Row(
+            //       children: [
+            //         const Icon(Icons.warning_amber_rounded, color: Colors.red),
 
-                    const SizedBox(width: 10),
+            //         const SizedBox(width: 10),
 
-                    Expanded(
-                      child: Text(
-                        "${controller.pendingInvoices} invoices pending • ₹${controller.pendingAmount}",
-                        style: const TextStyle(color: AppColors.textPrimary),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-
+            //         Expanded(
+            //           child: Text(
+            //             "${controller.pendingInvoices} invoices pending • ₹${controller.pendingAmount}",
+            //             style: const TextStyle(color: AppColors.textPrimary),
+            //           ),
+            //         ),
+            //       ],
+            //     ),
+            //   );
+            // }),
             const SizedBox(height: 30),
 
             /// =========================

@@ -74,7 +74,7 @@ class RoleSelectScreen extends StatelessWidget {
                 features: const ["Billing", "Inventory", "Customers"],
                 color: AppColors.info,
                 onTap: () {
-                  Get.toNamed("/login", arguments: "staff");
+                  Get.toNamed(AppRoutes.login, arguments: "staff");
                 },
               ),
 

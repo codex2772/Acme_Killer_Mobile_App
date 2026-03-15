@@ -17,6 +17,7 @@ class AppDrawer extends StatelessWidget {
     required String title,
     required IconData icon,
     required String route,
+    required Function onTap,
   }) {
     return ListTile(
       leading: Icon(icon, color: AppColors.textSecondary),
@@ -24,10 +25,7 @@ class AppDrawer extends StatelessWidget {
         title,
         style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
       ),
-      onTap: () {
-        Get.back();
-        Get.toNamed(route);
-      },
+      onTap: () => onTap(),
     );
   }
 
@@ -91,60 +89,112 @@ class AppDrawer extends StatelessWidget {
                   title: "Dashboard",
                   icon: Icons.diamond,
                   route: AppRoutes.dashboard,
+                  onTap: () {
+                    Get.back();
+                    Get.toNamed(AppRoutes.dashboard);
+                  },
                 ),
 
                 navItem(
                   title: "Inventory",
                   icon: Icons.inventory,
                   route: AppRoutes.inventory,
+                  onTap: () {
+                    Get.back();
+                    Get.toNamed(AppRoutes.inventory);
+                  },
                 ),
 
                 navItem(
                   title: "Billing",
                   icon: Icons.receipt_long,
                   route: AppRoutes.billing,
+                  onTap: () {
+                    Get.back();
+                    Get.toNamed(AppRoutes.billing);
+                  },
                 ),
 
                 navItem(
                   title: "Customers",
                   icon: Icons.people,
                   route: AppRoutes.customers,
+                  onTap: () {
+                    Get.back();
+                    Get.toNamed(AppRoutes.customers);
+                  },
                 ),
 
                 navItem(
                   title: "Accounts",
                   icon: Icons.account_balance_wallet,
                   route: AppRoutes.accounts,
+                  onTap: () {
+                    Get.back();
+                    Get.toNamed(AppRoutes.accounts);
+                  },
                 ),
 
-                navItem(title: "Rates", icon: Icons.sell, route: "/rates"),
+                navItem(
+                  title: "Rates",
+                  icon: Icons.sell,
+                  route: "/rates",
+                  onTap: () {
+                    Get.back();
+                    Get.toNamed("/rates");
+                  },
+                ),
 
                 navItem(
                   title: "Old Gold",
                   icon: Icons.repeat,
                   route: "/old-gold",
+                  onTap: () {
+                    Get.back();
+                    Get.toNamed("/old-gold");
+                  },
                 ),
 
                 navItem(
                   title: "Schemes",
                   icon: Icons.card_giftcard,
                   route: "/schemes",
+                  onTap: () {
+                    Get.back();
+                    Get.toNamed("/schemes");
+                  },
                 ),
 
                 navItem(
                   title: "Reports",
                   icon: Icons.bar_chart,
                   route: AppRoutes.reports,
+                  onTap: () {
+                    Get.back();
+                    Get.toNamed(AppRoutes.reports);
+                  },
                 ),
 
                 if (controller.role.value == "owner") ...[
-                  navItem(title: "Staff", icon: Icons.badge, route: "/staff"),
+                  navItem(
+                    title: "Staff",
+                    icon: Icons.badge,
+                    route: "/staff",
+                    onTap: () {
+                      Get.back();
+                      Get.toNamed(AppRoutes.staff);
+                    },
+                  ),
                 ],
 
                 navItem(
                   title: "Settings",
                   icon: Icons.settings,
                   route: AppRoutes.settings,
+                  onTap: () {
+                    Get.back();
+                    Get.toNamed(AppRoutes.settings);
+                  },
                 ),
 
                 const SizedBox(height: 10),

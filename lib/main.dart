@@ -1,11 +1,10 @@
-import 'package:acme_killer_mobile_app/core/controllers/store_controller.dart';
-import 'package:acme_killer_mobile_app/routes/app_pages.dart';
-import 'package:acme_killer_mobile_app/routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'core/bindings/initial_binding.dart';
+import 'routes/app_pages.dart';
+import 'routes/app_routes.dart';
 
 void main() {
-  Get.put(StoreController(), permanent: true);
   runApp(const MainApp());
 }
 
@@ -16,6 +15,7 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       debugShowCheckedModeBanner: false,
+      initialBinding: InitialBinding(),
       initialRoute: AppRoutes.splash,
       getPages: AppPages.pages,
     );

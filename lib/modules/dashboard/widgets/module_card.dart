@@ -42,7 +42,11 @@ class ModuleCard extends StatelessWidget {
 
           const Align(
             alignment: Alignment.bottomRight,
-            child: Icon(Icons.arrow_forward_ios, size: 14),
+            child: Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: AppColors.goldPrimary,
+            ),
           ),
         ],
       ),

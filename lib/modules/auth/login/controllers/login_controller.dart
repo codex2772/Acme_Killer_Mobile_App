@@ -3,12 +3,18 @@ import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 
 class LoginController extends GetxController {
-  final emailController = TextEditingController();
+  final loginIdController = TextEditingController();
   final passwordController = TextEditingController();
 
   var isLoading = false.obs;
 
-  void login() {
+  void login() async {
+    isLoading.value = true;
+
+    await Future.delayed(const Duration(seconds: 2));
+
+    isLoading.value = false;
+
     Get.offAllNamed(AppRoutes.dashboard);
   }
 }

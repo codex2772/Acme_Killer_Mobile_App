@@ -83,7 +83,7 @@ class LoginScreen extends GetView<LoginController> {
                       border: Border.all(color: AppColors.border),
                     ),
                     child: TextField(
-                      controller: controller.emailController,
+                      controller: controller.loginIdController,
                       style: const TextStyle(color: AppColors.textPrimary),
                       decoration: const InputDecoration(
                         hintText: "Login ID",
@@ -106,9 +106,7 @@ class LoginScreen extends GetView<LoginController> {
                     height: 55,
                     child: Obx(
                       () => ElevatedButton(
-                        onPressed: () {
-                          Get.offAllNamed(AppRoutes.dashboard);
-                        },
+                        onPressed: controller.login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.goldPrimary,
                           shape: RoundedRectangleBorder(
