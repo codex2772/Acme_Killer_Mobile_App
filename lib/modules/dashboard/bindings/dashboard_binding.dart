@@ -8,13 +8,8 @@ class DashboardBinding extends Bindings {
   @override
   void dependencies() {
     Get.put(CustomerController(), permanent: true);
-
-    // INVENTORY FIRST
     Get.put(InventoryController(), permanent: true);
-
-    // BILLING AFTER INVENTORY
     Get.put(BillingController(), permanent: true);
-
     Get.put(DashboardController());
   }
 }

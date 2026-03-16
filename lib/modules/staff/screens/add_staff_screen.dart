@@ -1,187 +1,334 @@
-import 'package:acme_killer_mobile_app/core/constants/app_colors.dart';
-import 'package:acme_killer_mobile_app/models/staff/staff_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../models/staff/staff_model.dart';
 import '../controllers/staff_controller.dart';
 
-class AddStaffScreen extends StatelessWidget {
-  final controller = Get.find<StaffController>();
+class AddStaffScreen extends StatefulWidget {
+  const AddStaffScreen({super.key});
+  @override
+  State<AddStaffScreen> createState() => _AddStaffScreenState();
+}
 
-  final name = TextEditingController();
-  final phone = TextEditingController();
-  final email = TextEditingController();
-  final salary = TextEditingController();
-  final commission = TextEditingController();
-  final target = TextEditingController();
-  final aadhaar = TextEditingController();
-  final pan = TextEditingController();
+class _AddStaffScreenState extends State<AddStaffScreen> {
+  final _ctrl = Get.find<StaffController>();
 
-  final role = "staff".obs;
+  final _nameCtrl    = TextEditingController();
+  final _phoneCtrl   = TextEditingController();
+  final _emailCtrl   = TextEditingController();
+  final _passwordCtrl= TextEditingController();
+  final _salaryCtrl  = TextEditingController();
+  final _commCtrl    = TextEditingController();
+  final _targetCtrl  = TextEditingController();
+  final _aadhaarCtrl = TextEditingController();
+  final _panCtrl     = TextEditingController();
+
+  String _role  = 'admin';
+  String _store = 'Rajmahal Jewellers - Main';
+  final Set<String> _perms = {};
+
+  static const _stores = [
+    'Rajmahal Jewellers - Main',
+    'Rajmahal Jewellers - Mall Road',
+    'Rajmahal Jewellers - City Center',
+  ];
+
+  @override
+  void dispose() {
+    for (final c in [_nameCtrl,_phoneCtrl,_emailCtrl,_passwordCtrl,
+        _salaryCtrl,_commCtrl,_targetCtrl,_aadhaarCtrl,_panCtrl]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _submit() {
+    final name  = _nameCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    if (name.isEmpty || phone.isEmpty || email.isEmpty) {
+      Get.snackbar('Error', 'Name, phone and email are required',
+          backgroundColor: AppColors.error.withOpacity(0.2),
+          colorText: AppColors.error,
+          snackPosition: SnackPosition.BOTTOM,
+          margin: const EdgeInsets.all(12));
+      return;
+    }
+    final perms = _role == 'admin' ? List<String>.from(kAdminPermissions) : List<String>.from(_perms);
+    final newId = 'STF${(_ctrl.staffMembers.length + 1).toString().padLeft(3,'0')}';
+    _ctrl.addStaff(Staff(
+      id: newId, name: name, phone: phone, email: email,
+      role: _role, store: _store, storeIds: [1],
+      status: 'Active',
+      salary: double.tryParse(_salaryCtrl.text) ?? 25000,
+      commission: double.tryParse(_commCtrl.text) ?? 0,
+      salesTarget: double.tryParse(_targetCtrl.text) ?? 0,
+      currentSales: 0,
+      joinDate: DateTime.now().toIso8601String().substring(0,10),
+      permissions: perms,
+      attendance: [],
+      leaves: {'total': _role == 'admin' ? 24 : 18, 'used':0,'pending':0,'balance': _role == 'admin' ? 24 : 18},
+    ));
+    Get.back();
+    Get.snackbar('Staff Added', '"$name" added as ${_role == 'admin' ? 'Admin' : 'Staff'}',
+        backgroundColor: AppColors.bgCard,
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(12));
+  }
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-
     return Scaffold(
-      backgroundColor: const Color(0xff0f0f1a),
-
+      backgroundColor: AppColors.bgPrimary,
       appBar: AppBar(
-        title: const Text(
-          "Add Staff",
-          style: TextStyle(color: AppColors.white),
-        ),
+        backgroundColor: AppColors.bgPrimary, elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.white),
-          onPressed: () => Get.back(),
-        ),
-        backgroundColor: AppColors.bgSecondary,
+          icon: const Icon(Icons.arrow_back_ios_new,
+              color: AppColors.textPrimary, size: 18),
+          onPressed: () => Get.back()),
+        title: const Text('Add New Staff',
+            style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
       ),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        _sectionCard('Personal Info', Icons.person_outline, Column(children: [
+          _row2(_tf(_nameCtrl, 'Full Name *', hint: 'e.g., Arjun Kapoor'),
+                _tf(_phoneCtrl, 'Phone *', hint: '+91 98765 43210', keyboardType: TextInputType.phone)),
+          _row2(_tf(_emailCtrl, 'Email *', hint: 'email@jewelerp.com', keyboardType: TextInputType.emailAddress),
+                _tf(_passwordCtrl, 'Password *', hint: '••••••••', obscure: true)),
+        ])),
+        const SizedBox(height: 12),
 
-      body: Center(
-        child: Container(
-          width: width > 700 ? 700 : double.infinity,
+        _sectionCard('Compensation', Icons.currency_rupee_rounded, Column(children: [
+          _row3(
+            _tf(_salaryCtrl, 'Salary (₹/mo)', hint: '25000', keyboardType: TextInputType.number),
+            _tf(_commCtrl,   'Commission (%)', hint: '0.5',   keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+            _tf(_targetCtrl, 'Sales Target (₹)', hint: '500000', keyboardType: TextInputType.number),
+          ),
+        ])),
+        const SizedBox(height: 12),
 
-          padding: const EdgeInsets.all(20),
+        _sectionCard('Store Assignment', Icons.store_outlined,
+          _dd('Assign to Store', _stores, _store,
+              (v) => setState(() => _store = v!))),
+        const SizedBox(height: 12),
 
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                formRow(name, "Full Name"),
-                formRow(phone, "Phone"),
-                formRow(email, "Email"),
+        _sectionCard('Role & Permissions', Icons.shield_outlined, Column(children: [
+          // Role toggle
+          Row(children: [
+            Expanded(child: _roleBtn('admin', 'Admin', 'Full store access',
+                Icons.manage_accounts_outlined)),
+            const SizedBox(width: 10),
+            Expanded(child: _roleBtn('staff', 'Staff', 'Custom permissions',
+                Icons.person_outline)),
+          ]),
+          const SizedBox(height: 12),
 
-                const SizedBox(height: 10),
+          // Admin notice / permissions section
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: _role == 'admin'
+                ? _adminNotice()
+                : _permissionsSection(),
+          ),
+        ])),
+        const SizedBox(height: 12),
 
-                formRow(salary, "Salary"),
-                formRow(commission, "Commission %"),
-                formRow(target, "Sales Target"),
+        _sectionCard('KYC Documents', Icons.badge_outlined, Column(children: [
+          _row2(_tf(_aadhaarCtrl, 'Aadhaar Number', hint: '0000 0000 0000'),
+                _tf(_panCtrl,    'PAN Number',      hint: 'ABCDE1234F')),
+        ])),
+        const SizedBox(height: 24),
 
-                const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: OutlinedButton(
+            onPressed: () => Get.back(),
+            style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textPrimary,
+                side: const BorderSide(color: AppColors.border),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            child: const Text('Cancel'))),
+          const SizedBox(width: 12),
+          Expanded(flex:2, child: ElevatedButton.icon(
+            onPressed: _submit,
+            icon: const Icon(Icons.check, size: 18, color: Colors.black),
+            label: const Text('Add Staff',
+                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.goldPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0))),
+        ]),
+        const SizedBox(height: 40),
+      ]),
+    );
+  }
 
-                formRow(aadhaar, "Aadhaar"),
-                formRow(pan, "PAN"),
+  Widget _roleBtn(String role, String title, String sub, IconData icon) {
+    final active = _role == role;
+    final color  = role == 'admin' ? const Color(0xFFF472B6) : AppColors.info;
+    return GestureDetector(
+      onTap: () => setState(() { _role = role; if (role == 'admin') _perms.clear(); }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: active ? color.withOpacity(0.1) : AppColors.inputFill,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: active ? color : AppColors.border, width: active ? 1.5 : 1)),
+        child: Row(children: [
+          Icon(icon, color: active ? color : AppColors.textSecondary, size: 20),
+          const SizedBox(width: 10),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: TextStyle(color: active ? color : AppColors.textPrimary,
+                fontWeight: FontWeight.bold, fontSize: 13)),
+            Text(sub, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          ]),
+        ]),
+      ),
+    );
+  }
 
-                const SizedBox(height: 15),
+  Widget _adminNotice() => Container(
+    key: const ValueKey('admin'),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: AppColors.info.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: AppColors.info.withOpacity(0.3))),
+    child: const Row(children: [
+      Icon(Icons.shield_outlined, color: AppColors.info, size: 18),
+      SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Admin Access', style: TextStyle(color: AppColors.info,
+            fontWeight: FontWeight.bold, fontSize: 13)),
+        Text('Full store operations access. Revenue Dashboard exclusive to owner.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+      ])),
+    ]),
+  );
 
-                /// ROLE
-                Obx(
-                  () => Row(
-                    children: [
-                      roleBtn("admin"),
-                      const SizedBox(width: 10),
-                      roleBtn("staff"),
-                    ],
-                  ),
+  Widget _permissionsSection() {
+    final groups = kPermGroups;
+    return Column(key: const ValueKey('staff'), children: groups.keys.map((group) {
+      final perms = groups[group]!;
+      final allChecked = perms.every((p) => _perms.contains(p.id));
+      return Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.bgSecondary,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(group, style: const TextStyle(color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600, fontSize: 13)),
+            GestureDetector(
+              onTap: () => setState(() {
+                if (allChecked) for (final p in perms) _perms.remove(p.id);
+                else            for (final p in perms) _perms.add(p.id);
+              }),
+              child: Row(children: [
+                Checkbox(
+                  value: allChecked,
+                  onChanged: (v) => setState(() {
+                    if (v == true) for (final p in perms) _perms.add(p.id);
+                    else           for (final p in perms) _perms.remove(p.id);
+                  }),
+                  activeColor: AppColors.goldPrimary,
+                  side: const BorderSide(color: AppColors.border),
                 ),
-
-                const SizedBox(height: 20),
-
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xffd4af37),
-                    minimumSize: const Size(double.infinity, 50),
-                  ),
-
-                  onPressed: () {
-                    controller.addStaff(
-                      Staff(
-                        id: DateTime.now().millisecondsSinceEpoch.toString(),
-
-                        name: name.text,
-                        phone: phone.text,
-                        email: email.text,
-
-                        role: role.value,
-                        store: "Main Store",
-
-                        status: "Active",
-
-                        salary: double.tryParse(salary.text) ?? 0,
-                        commission: double.tryParse(commission.text) ?? 0,
-                        salesTarget: double.tryParse(target.text) ?? 0,
-
-                        currentSales: 0,
-
-                        joinDate: DateTime.now().toString(),
-
-                        permissions: [],
-                        attendance: [],
-
-                        leaves: {
-                          "total": 24,
-                          "used": 0,
-                          "pending": 0,
-                          "balance": 24,
-                        },
-                        storeIds: [],
-                      ),
-                    );
-
-                    Get.back();
-                  },
-
-                  child: const Text(
-                    "Save Staff",
-                    style: TextStyle(color: Colors.black),
-                  ),
-                ),
-              ],
+                const Text('All', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              ]),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget formRow(TextEditingController c, String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-
-      child: TextField(
-        controller: c,
-
-        style: const TextStyle(color: Colors.white),
-
-        decoration: InputDecoration(
-          labelText: label,
-
-          labelStyle: const TextStyle(color: Colors.grey),
-
-          filled: true,
-          fillColor: const Color(0xff111827),
-
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      ),
-    );
-  }
-
-  Widget roleBtn(String value) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => role.value = value,
-
-        child: Container(
-          padding: const EdgeInsets.all(12),
-
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-
-            color: role.value == value
-                ? const Color(0xffd4af37)
-                : const Color(0xff1a1a2e),
-          ),
-
-          child: Center(
-            child: Text(
-              value.toUpperCase(),
-              style: TextStyle(
-                color: role.value == value ? Colors.black : Colors.white,
+          ]),
+          const SizedBox(height: 6),
+          ...perms.map((p) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(children: [
+              Checkbox(
+                value: _perms.contains(p.id),
+                onChanged: (v) => setState(() {
+                  v == true ? _perms.add(p.id) : _perms.remove(p.id);
+                }),
+                activeColor: AppColors.goldPrimary,
+                side: const BorderSide(color: AppColors.border),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
+              Text(p.label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+            ]),
+          )),
+        ]),
+      );
+    }).toList());
   }
+
+  // ── Shared helpers ──
+  Widget _sectionCard(String title, IconData icon, Widget child) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(icon, color: AppColors.goldPrimary, size: 15),
+        const SizedBox(width: 7),
+        Text(title, style: const TextStyle(color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600, fontSize: 13)),
+      ]),
+      const SizedBox(height: 12),
+      child,
+    ]),
+  );
+
+  Widget _tf(TextEditingController ctrl, String label,
+      {String? hint, TextInputType? keyboardType, bool obscure = false}) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(color: AppColors.textSecondary,
+            fontSize: 12, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 5),
+        Container(
+          decoration: BoxDecoration(color: AppColors.inputFill,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border)),
+          child: TextField(
+            controller: ctrl, keyboardType: keyboardType, obscureText: obscure,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11)))),
+        const SizedBox(height: 10),
+      ]);
+
+  Widget _dd(String label, List<String> items, String val, ValueChanged<String?> onChange) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(color: AppColors.textSecondary,
+            fontSize: 12, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 5),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(color: AppColors.inputFill,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border)),
+          child: DropdownButtonHideUnderline(child: DropdownButton<String>(
+            value: val, isExpanded: true, dropdownColor: AppColors.bgSecondary,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+            items: items.map((i) => DropdownMenuItem(value: i, child: Text(i,
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)))).toList(),
+            onChanged: onChange))),
+      ]);
+
+  Widget _row2(Widget a, Widget b) => Row(children: [
+    Expanded(child: Padding(padding: const EdgeInsets.only(right: 6), child: a)),
+    Expanded(child: Padding(padding: const EdgeInsets.only(left: 6), child: b)),
+  ]);
+
+  Widget _row3(Widget a, Widget b, Widget c) => Row(children: [
+    Expanded(child: Padding(padding: const EdgeInsets.only(right: 4), child: a)),
+    Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: b)),
+    Expanded(child: Padding(padding: const EdgeInsets.only(left: 4), child: c)),
+  ]);
 }

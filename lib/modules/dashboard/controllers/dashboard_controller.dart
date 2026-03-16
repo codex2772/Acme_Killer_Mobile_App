@@ -1,116 +1,181 @@
 import 'package:get/get.dart';
+import '../../../core/controllers/auth_controller.dart';
 import '../../../core/controllers/store_controller.dart';
 
-class DashboardController extends GetxController {
-  /// Controllers
-  final storeController = Get.find<StoreController>();
+// ── Invoice model for dashboard ──
+class DashInvoice {
+  final String id;
+  final String customer;
+  final int amount;
+  final String status; // Paid | Pending | Partial
+  final String date;
+  final String store;
+  final String type; // invoice | estimate | credit-note
 
-  /// Stats
-  var activeCustomers = 845.obs;
-  var goldRate = 6550.obs;
+  const DashInvoice({
+    required this.id,
+    required this.customer,
+    required this.amount,
+    required this.status,
+    required this.date,
+    required this.store,
+    required this.type,
+  });
 
-  /// Role
-  var role = "owner".obs; // owner | admin | staff
-
-  /// Invoices (dummy)
-  var invoices = [
-    {
-      "id": "INV-001",
-      "customer": "Rahul Shah",
-      "amount": 45000,
-      "status": "Pending",
-      "date": "12 Mar",
-      "store": "Main Store",
-    },
-    {
-      "id": "INV-002",
-      "customer": "Priya Patel",
-      "amount": 120000,
-      "status": "Paid",
-      "date": "11 Mar",
-      "store": "Gold Palace",
-    },
-    {
-      "id": "INV-003",
-      "customer": "Amit Kumar",
-      "amount": 75000,
-      "status": "Pending",
-      "date": "10 Mar",
-      "store": "City Branch",
-    },
-    {
-      "id": "INV-004",
-      "customer": "Neha Sharma",
-      "amount": 92000,
-      "status": "Paid",
-      "date": "09 Mar",
-      "store": "Main Store",
-    },
-  ].obs;
-
-  /// =========================
-  /// FILTER BY STORE
-  /// =========================
-
-  List<T> filterByStore<T>(List<T> items, String? Function(T) storeGetter) {
-    if (storeController.selectedStore.value == null) {
-      return items;
-    }
-
-    return items.where((item) {
-      return storeGetter(item) == storeController.selectedStore.value;
-    }).toList();
+  String get formattedAmount {
+    if (amount >= 100000) return '₹${(amount / 100000).toStringAsFixed(1)}L';
+    if (amount >= 1000) return '₹${(amount / 1000).toStringAsFixed(1)}K';
+    return '₹$amount';
   }
 
-  /// Invoices filtered by store
-  List<Map> get storeInvoices =>
-      filterByStore(invoices.toList().cast<Map>(), (i) => i["store"]);
+  String get formattedDate {
+    try {
+      final d = DateTime.parse(date);
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return '${d.day} ${months[d.month - 1]}';
+    } catch (_) { return date; }
+  }
+}
 
-  /// =========================
-  /// DASHBOARD STATS
-  /// =========================
+// ── Module item for modules grid ──
+class DashModule {
+  final String title;
+  final String desc;
+  final String count;
+  final String route;
+  final dynamic icon; // IconData
+  final int color;
+  final String? permModule; // permission gate key
 
-  // /// Inventory stats from InventoryController
-  // int get totalInventory => inventoryController.totalItems;
+  const DashModule({
+    required this.title,
+    required this.desc,
+    required this.count,
+    required this.route,
+    required this.icon,
+    required this.color,
+    this.permModule,
+  });
+}
 
-  // int get lowStockItems => inventoryController.lowStock;
+class DashboardController extends GetxController {
+  final AuthController _auth = Get.find<AuthController>();
+  final StoreController _store = Get.find<StoreController>();
 
-  // int get stockValue => inventoryController.stockValue;
+  // ── Reactive state ──
+  final RxBool isLoading = false.obs;
 
-  /// Invoice stats
-  int get pendingInvoices =>
-      storeInvoices.where((i) => i["status"] == "Pending").length;
+  // Stats
+  final RxInt totalInventory = 1240.obs;
+  final RxInt lowStockCount = 3.obs;
+  final RxInt todaySales = 332000.obs;
+  final RxInt pendingInvoiceCount = 2.obs;
+  final RxInt activeCustomers = 845.obs;
+  final RxInt vipCustomers = 12.obs;
+  final RxInt gold22k = 6285.obs;
+  final RxInt gold24k = 7350.obs;
+  final RxInt silverRate = 92.obs;
 
-  int get pendingAmount => storeInvoices
-      .where((i) => i["status"] == "Pending")
-      .fold(0, (sum, i) => sum + (i["amount"] as int));
+  // Alerts
+  final RxInt lowStockAlerts = 3.obs;
+  final RxInt pendingDueCount = 2.obs;
+  final RxInt pendingDueAmount = 250000.obs;
 
-  int get todaySales =>
-      storeInvoices.fold(0, (sum, i) => sum + (i["amount"] as int));
+  // Role (reads from AuthController)
+  String get role => _auth.role;
+  bool get isOwner => _auth.isOwner;
+  bool get isDemo => _auth.isDemo.value;
+  String get userName => _auth.userName;
+  String get storeName => _store.activeLabel;
 
-  /// =========================
-  /// QUICK ACTIONS
-  /// =========================
+  // ── All invoices (demo data — mirrors state.js invoices) ──
+  final List<DashInvoice> _allInvoices = const [
+    DashInvoice(id: 'BIL001', customer: 'Priya Sharma',  amount: 364250, status: 'Paid',    date: '2026-03-09', store: 'Rajmahal Jewellers - Main',        type: 'invoice'),
+    DashInvoice(id: 'BIL002', customer: 'Rahul Mehta',   amount: 145000, status: 'Paid',    date: '2026-03-08', store: 'Rajmahal Jewellers - Mall Road',    type: 'invoice'),
+    DashInvoice(id: 'BIL003', customer: 'Anita Desai',   amount: 598500, status: 'Partial', date: '2026-03-07', store: 'Rajmahal Jewellers - Main',        type: 'invoice'),
+    DashInvoice(id: 'BIL004', customer: 'Vikram Singh',  amount: 52000,  status: 'Pending', date: '2026-03-05', store: 'Rajmahal Jewellers - City Center', type: 'invoice'),
+    DashInvoice(id: 'BIL005', customer: 'Meera Patel',   amount: 198000, status: 'Pending', date: '2026-03-04', store: 'Rajmahal Jewellers - Main',        type: 'invoice'),
+    DashInvoice(id: 'EST001', customer: 'Suresh Kumar',  amount: 420000, status: 'Pending', date: '2026-03-06', store: 'Rajmahal Jewellers - Mall Road',   type: 'estimate'),
+    DashInvoice(id: 'CN001',  customer: 'Kavita Nair',   amount: 18500,  status: 'Paid',    date: '2026-03-03', store: 'Rajmahal Jewellers - Main',        type: 'credit-note'),
+  ];
 
-  final quickActions = [
-    {"title": "New Invoice", "icon": "invoice"},
-    {"title": "Add Item", "icon": "inventory"},
-    {"title": "Add Customer", "icon": "customer"},
-    {"title": "Add Staff", "icon": "staff"},
-  ].obs;
+  // ── Store-filtered invoices (mirrors filterByStore in dashboard.js) ──
+  List<DashInvoice> get invoices {
+    final selected = _store.selectedStoreName;
+    if (selected == null) return _allInvoices;
+    return _allInvoices.where((i) => i.store == selected).toList();
+  }
 
-  /// =========================
-  /// MODULES
-  /// =========================
+  List<DashInvoice> get recentInvoices => invoices.take(5).toList();
 
-  final modules = [
-    {"title": "Inventory", "count": "1240 items"},
-    {"title": "Billing", "count": "5 pending"},
-    {"title": "Customers", "count": "845 active"},
-    {"title": "Accounts", "count": "230 entries"},
-    {"title": "Rates", "count": "Updated"},
-    {"title": "Old Gold", "count": "15 entries"},
-    {"title": "Schemes", "count": "3 active"},
-    {"title": "Reports", "count": "10 types"},
-  ].obs;
+  List<DashInvoice> get pendingInvoices =>
+      invoices.where((i) => i.status == 'Pending' || i.status == 'Partial').toList();
+
+  int get pendingTotalAmount =>
+      pendingInvoices.fold(0, (sum, i) => sum + i.amount);
+
+  // ── Gold rate formatted ──
+  String get gold22kDisplay => '₹${_formatNum(gold22k.value)}/g';
+  String get gold22kTola   => '₹${_formatNum((gold22k.value * 11.664).round())}/tola';
+
+  // ── Quick actions (role-aware, mirrors dashboard.js quickActions) ──
+  List<_QuickAction> get quickActions => [
+    const _QuickAction(label: 'New Invoice',  route: '/create-invoice', color: 0xFFD4AF37, iconCode: 0xe147),
+    const _QuickAction(label: 'Add Item',     route: '/add-inventory',  color: 0xFF4ADE80, iconCode: 0xe047),
+    const _QuickAction(label: 'Add Customer', route: '/add-customer',   color: 0xFF60A5FA, iconCode: 0xe7fe),
+    if (isOwner)
+      const _QuickAction(label: 'Add Staff',      route: '/add-staff',   color: 0xFFF472B6, iconCode: 0xe7fb)
+    else
+      const _QuickAction(label: 'Record Payment', route: '/accounts',    color: 0xFFC084FC, iconCode: 0xe227),
+  ];
+
+  // ── Load stats from API (with demo fallback) ──
+  @override
+  void onInit() {
+    super.onInit();
+    _loadStats();
+    // Reload when store changes
+    ever(_store.selectedStore, (_) => _recalcFromStore());
+  }
+
+  void _recalcFromStore() {
+    // Recalculate today's sales from filtered invoices
+    final filtered = invoices.where((i) =>
+        i.date == DateTime.now().toIso8601String().substring(0, 10)).toList();
+    if (filtered.isNotEmpty) {
+      todaySales.value = filtered.fold(0, (s, i) => s + i.amount);
+    }
+  }
+
+  Future<void> _loadStats() async {
+    isLoading.value = true;
+    // In real app: call API endpoint GET /dashboard/summary
+    // For now use demo values that mirror state.js
+    await Future.delayed(const Duration(milliseconds: 600));
+    isLoading.value = false;
+  }
+
+  Future<void> refresh() => _loadStats();
+
+  String _formatNum(int n) {
+    if (n >= 10000000) return '${(n / 10000000).toStringAsFixed(2)}Cr';
+    if (n >= 100000)   return '${(n / 100000).toStringAsFixed(2)}L';
+    if (n >= 1000)     return '${(n / 1000).toStringAsFixed(0)},${(n % 1000).toString().padLeft(3, '0')}';
+    return '$n';
+  }
+
+  String formatCurrency(int val) {
+    if (val >= 10000000) return '₹${(val / 10000000).toStringAsFixed(1)}Cr';
+    if (val >= 100000)   return '₹${(val / 100000).toStringAsFixed(1)}L';
+    if (val >= 1000)     return '₹${(val / 1000).toStringAsFixed(0)}K';
+    return '₹$val';
+  }
+}
+
+class _QuickAction {
+  final String label;
+  final String route;
+  final int color;
+  final int iconCode;
+  const _QuickAction({required this.label, required this.route, required this.color, required this.iconCode});
 }

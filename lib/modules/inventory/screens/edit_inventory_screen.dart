@@ -6,374 +6,296 @@ import '../controllers/inventory_controller.dart';
 
 class EditInventoryScreen extends StatefulWidget {
   const EditInventoryScreen({super.key});
-
   @override
   State<EditInventoryScreen> createState() => _EditInventoryScreenState();
 }
 
 class _EditInventoryScreenState extends State<EditInventoryScreen> {
+  final _ctrl    = Get.find<InventoryController>();
+  final _formKey = GlobalKey<FormState>();
+  late InventoryItem _item;
 
-  final controller = Get.find<InventoryController>();
-  final formKey = GlobalKey<FormState>();
+  late TextEditingController _name, _netWeight, _grossWeight, _stoneWeight,
+      _costPrice, _sellingPrice, _makingCharge, _location, _description;
 
-  late InventoryItem item;
+  String _category = '', _metal = '', _purity = '', _status = 'In Stock';
 
-  late TextEditingController name;
-  late TextEditingController netWeight;
-  late TextEditingController grossWeight;
-  late TextEditingController stoneWeight;
-  late TextEditingController costPrice;
-  late TextEditingController sellingPrice;
-  late TextEditingController makingCharge;
-  late TextEditingController location;
-  late TextEditingController description;
-
-  String category = "";
-  String metal = "";
-  String purity = "";
-  String status = "In Stock";
+  static const _categories = ['Necklace','Ring','Earring','Bracelet','Anklet','Bangle','Chain','Pendant','Set','Mangalsutra','Nose Ring','Toe Ring','Other'];
+  static const _metals     = ['Gold','Silver','Platinum','Diamond','Rose Gold','White Gold','Other'];
+  static const _purities   = ['24K','22K','18K','14K','925 Silver','950 Platinum'];
+  static const _statuses   = ['In Stock','Low Stock','Sold','Reserved'];
 
   @override
   void initState() {
     super.initState();
-
-    item = Get.arguments;
-
-    name = TextEditingController(text: item.name);
-    netWeight = TextEditingController(text: item.netWeight.toString());
-    grossWeight = TextEditingController(text: item.grossWeight.toString());
-    stoneWeight = TextEditingController(text: item.stoneWeight.toString());
-    costPrice = TextEditingController(text: item.costPrice.toString());
-    sellingPrice = TextEditingController(text: item.sellingPrice.toString());
-    makingCharge = TextEditingController(text: item.makingCharge.toString());
-    location = TextEditingController(text: item.showcaseLocation ?? "");
-    description = TextEditingController(text: item.description ?? "");
-
-    category = item.category;
-    metal = item.metal;
-    purity = item.purity;
-    status = item.status;
+    _item         = Get.arguments as InventoryItem;
+    _name         = TextEditingController(text: _item.name);
+    _netWeight    = TextEditingController(text: _item.netWeight.toString());
+    _grossWeight  = TextEditingController(text: _item.grossWeight.toString());
+    _stoneWeight  = TextEditingController(text: _item.stoneWeight.toString());
+    _costPrice    = TextEditingController(text: _item.costPrice.toString());
+    _sellingPrice = TextEditingController(text: _item.sellingPrice.toString());
+    _makingCharge = TextEditingController(text: _item.makingCharge.toString());
+    _location     = TextEditingController(text: _item.showcaseLocation);
+    _description  = TextEditingController(text: _item.description);
+    _category     = _item.category;
+    _metal        = _item.metal;
+    _purity       = _item.purity;
+    _status       = _item.status;
   }
 
   @override
-  Widget build(BuildContext context) {
-
-    return Scaffold(
-      backgroundColor: AppColors.bgPrimary,
-
-      appBar: AppBar(
-        backgroundColor: AppColors.bgPrimary,
-        elevation: 0,
-        title: Text(
-          "Edit ${item.name}",
-          style: const TextStyle(color: AppColors.textPrimary),
-        ),
-      ),
-
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-
-        child: Form(
-          key: formKey,
-
-          child: Column(
-            children: [
-
-              /// ITEM INFO
-              formCard("Item Information", Icons.inventory_2_outlined, [
-
-                field(textField(name,"Item Name",Icons.label)),
-
-                field(dropdown(
-                    "Category",
-                    category,
-                    ["Necklace","Ring","Earring","Bracelet","Anklet","Bangle","Chain","Pendant","Set","Mangalsutra","Nose Ring","Toe Ring","Other"],
-                        (v)=>setState(()=>category=v!)
-                )),
-
-                field(dropdown(
-                    "Metal",
-                    metal,
-                    ["Gold","Silver","Platinum","Diamond","Rose Gold","White Gold"],
-                        (v)=>setState(()=>metal=v!)
-                )),
-
-                field(dropdown(
-                    "Purity",
-                    purity,
-                    ["24K","22K","18K","14K","925 Silver","950 Platinum"],
-                        (v)=>setState(()=>purity=v!)
-                )),
-
-              ]),
-
-              /// WEIGHT
-              formCard("Weight Details", Icons.scale, [
-
-                field(numberField(netWeight,"Net Weight","g")),
-                field(numberField(grossWeight,"Gross Weight","g")),
-                field(numberField(stoneWeight,"Stone Weight","g")),
-
-              ]),
-
-              /// PRICING
-              formCard("Pricing", Icons.currency_rupee, [
-
-                field(numberField(costPrice,"Cost Price","₹")),
-                field(numberField(sellingPrice,"Selling Price","₹")),
-                field(numberField(makingCharge,"Making %","%")),
-
-              ]),
-
-              /// IDENTIFICATION
-              formCard("Identification", Icons.qr_code, [
-
-                field(textField(location,"Showcase Location",Icons.store)),
-
-                field(dropdown(
-                    "Status",
-                    status,
-                    ["In Stock","Low Stock","Sold","Reserved"],
-                        (v)=>setState(()=>status=v!)
-                )),
-
-              ]),
-
-              /// DESCRIPTION
-              formCard("Description", Icons.notes, [
-                field(textField(description,"Notes",Icons.notes,lines:3)),
-              ]),
-
-              const SizedBox(height:40),
-
-              /// BUTTONS
-
-              Row(
-                children: [
-
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: ()=>Get.back(),
-                      child: const Text("Cancel"),
-                    ),
-                  ),
-
-                  const SizedBox(width:10),
-
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.goldPrimary,
-                        foregroundColor: Colors.black,
-                      ),
-
-                      onPressed: updateItem,
-
-                      child: const Text("Save Changes"),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height:10),
-
-              SizedBox(
-                width: double.infinity,
-
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                  ),
-
-                  onPressed: deleteItem,
-
-                  child: const Text("Delete Item"),
-                ),
-              ),
-
-              const SizedBox(height:60),
-            ],
-          ),
-        ),
-      ),
-    );
+  void dispose() {
+    for (final c in [_name,_netWeight,_grossWeight,_stoneWeight,_costPrice,
+        _sellingPrice,_makingCharge,_location,_description]) c.dispose();
+    super.dispose();
   }
 
-  /// UPDATE ITEM
-
-  void updateItem(){
-
-    final updated = item.copyWith(
-      name: name.text,
-      category: category,
-      metal: metal,
-      purity: purity,
-      netWeight: double.tryParse(netWeight.text) ?? 0,
-      grossWeight: double.tryParse(grossWeight.text) ?? 0,
-      stoneWeight: double.tryParse(stoneWeight.text) ?? 0,
-      costPrice: int.tryParse(costPrice.text) ?? 0,
-      sellingPrice: int.tryParse(sellingPrice.text) ?? 0,
-      makingCharge: double.tryParse(makingCharge.text) ?? 0,
-      showcaseLocation: location.text,
-      status: status,
-      description: description.text,
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    final updated = _item.copyWith(
+      name:             _name.text.trim(),
+      category:         _category,
+      metal:            _metal,
+      purity:           _purity,
+      netWeight:        double.tryParse(_netWeight.text) ?? _item.netWeight,
+      grossWeight:      double.tryParse(_grossWeight.text) ?? _item.grossWeight,
+      stoneWeight:      double.tryParse(_stoneWeight.text) ?? _item.stoneWeight,
+      makingCharge:     double.tryParse(_makingCharge.text) ?? _item.makingCharge,
+      costPrice:        int.tryParse(_costPrice.text) ?? _item.costPrice,
+      sellingPrice:     int.tryParse(_sellingPrice.text) ?? _item.sellingPrice,
+      showcaseLocation: _location.text.trim(),
+      description:      _description.text.trim(),
+      status:           _status,
     );
-
-    controller.updateItem(item.id, updated);
-
+    _ctrl.updateItem(_item.id, updated);
     Get.back();
+    Get.snackbar('Updated', '"${updated.name}" saved!',
+        backgroundColor: AppColors.bgCard, colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
   }
 
-  /// DELETE ITEM
-
-  void deleteItem(){
-
-    Get.defaultDialog(
-      title: "Delete Item",
-      middleText: "Are you sure you want to delete this item?",
-      confirm: ElevatedButton(
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-        onPressed: (){
-          controller.deleteItem(item.id);
-          Get.back();
-          Get.back();
-        },
-        child: const Text("Delete"),
-      ),
-      cancel: TextButton(
-        onPressed: ()=>Get.back(),
-        child: const Text("Cancel"),
-      ),
-    );
-  }
-
-  /// CARD
-
-  Widget formCard(String title,IconData icon,List<Widget> children){
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom:20),
-      padding: const EdgeInsets.all(16),
-
-      decoration: BoxDecoration(
-        color: AppColors.bgCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
-        children: [
-
-          Row(
-            children: [
-
-              Icon(icon,color: AppColors.goldPrimary,size:20),
-
-              const SizedBox(width:8),
-
-              Text(
-                title,
-                style: const TextStyle(
-                  color: AppColors.goldPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height:16),
-
-          Wrap(
-            spacing:12,
-            runSpacing:12,
-            children: children,
+  void _delete() {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: AppColors.bgSecondary,
+        title: const Text('Delete Item',
+            style: TextStyle(color: AppColors.textPrimary)),
+        content: Text('Delete "${_item.name}"? This cannot be undone.',
+            style: const TextStyle(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Get.back(),
+              child: const Text('Cancel',
+                  style: TextStyle(color: AppColors.textSecondary))),
+          ElevatedButton(
+            onPressed: () {
+              _ctrl.deleteItem(_item.id);
+              Get.until((r) => r.settings.name == '/inventory');
+              Get.snackbar('Deleted', '"${_item.name}" removed',
+                  backgroundColor: AppColors.bgCard,
+                  colorText: AppColors.textPrimary,
+                  snackPosition: SnackPosition.BOTTOM,
+                  margin: const EdgeInsets.all(12));
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  /// FIELD WRAPPER
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.bgPrimary,
+      appBar: AppBar(
+        backgroundColor: AppColors.bgPrimary, elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new,
+              color: AppColors.textPrimary, size: 18),
+          onPressed: () => Get.back(),
+        ),
+        title: Text('Edit ${_item.name}',
+            style: const TextStyle(color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600, fontSize: 15),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: AppColors.error),
+            onPressed: _delete,
+          ),
+        ],
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _section('Basic Information', Icons.inventory_2_outlined),
+            _field(_name, 'Item Name *', validator: _req),
+            _row2(
+              _dropdown('Category', _categories, _category,
+                  (v) => setState(() => _category = v!)),
+              _dropdown('Metal Type', _metals, _metal,
+                  (v) => setState(() => _metal = v!)),
+            ),
+            _row2(
+              _dropdown('Purity', _purities, _purity,
+                  (v) => setState(() => _purity = v!)),
+              _dropdown('Status', _statuses, _status,
+                  (v) => setState(() => _status = v!)),
+            ),
 
-  Widget field(Widget child){
-    return SizedBox(
-      width: MediaQuery.of(context).size.width,
-      child: child,
-    );
-  }
+            const SizedBox(height: 6),
+            _section('Weight Details', Icons.scale_outlined),
+            _row3(
+              _numField(_netWeight,   'Net Weight (g)'),
+              _numField(_grossWeight, 'Gross Weight (g)'),
+              _numField(_stoneWeight, 'Stone Weight (g)'),
+            ),
 
-  /// TEXTFIELD
+            const SizedBox(height: 6),
+            _section('Pricing', Icons.currency_rupee),
+            _row3(
+              _numField(_costPrice,    'Cost Price (₹)'),
+              _numField(_sellingPrice, 'Selling Price (₹)'),
+              _numField(_makingCharge, 'Making %'),
+            ),
 
-  Widget textField(TextEditingController c,String label,IconData icon,{int lines=1}){
+            const SizedBox(height: 6),
+            _section('Location & Notes', Icons.location_on_outlined),
+            _field(_location,    'Showcase Location'),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.inputFill,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: TextFormField(
+                controller: _description,
+                maxLines: 3,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: const InputDecoration(
+                  hintText: 'Description / notes...',
+                  hintStyle: TextStyle(color: AppColors.textMuted),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.all(12),
+                ),
+              ),
+            ),
 
-    return TextFormField(
-      controller: c,
-      maxLines: lines,
-      style: const TextStyle(color: AppColors.textPrimary),
-
-      decoration: InputDecoration(
-        hintText: label,
-        prefixIcon: Icon(icon,color: AppColors.goldPrimary),
-        filled: true,
-        fillColor: AppColors.inputFill,
-        hintStyle: const TextStyle(color: AppColors.textMuted),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            const SizedBox(height: 24),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Get.back(),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textPrimary,
+                    side: const BorderSide(color: AppColors.border),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: _save,
+                  icon: const Icon(Icons.check, size: 18, color: Colors.black),
+                  label: const Text('Save Changes',
+                      style: TextStyle(
+                          color: Colors.black, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.goldPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 40),
+          ],
+        ),
       ),
     );
   }
 
-  /// NUMBER FIELD
+  // ─── Shared helpers ───
+  Widget _section(String t, IconData icon) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(children: [
+      Icon(icon, color: AppColors.goldPrimary, size: 15),
+      const SizedBox(width: 7),
+      Text(t, style: const TextStyle(color: AppColors.textPrimary,
+          fontWeight: FontWeight.w600, fontSize: 13)),
+    ]),
+  );
 
-  Widget numberField(TextEditingController c,String label,String suffix){
-
-    return TextFormField(
-      controller: c,
-      keyboardType: TextInputType.number,
-      style: const TextStyle(color: AppColors.textPrimary),
-
-      decoration: InputDecoration(
-        hintText: label,
-        suffixText: suffix,
-        filled: true,
-        fillColor: AppColors.inputFill,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+  Widget _wrap(String label, Widget child) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: const TextStyle(
+          color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
+      const SizedBox(height: 5),
+      Container(
+        decoration: BoxDecoration(
+          color: AppColors.inputFill,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: child,
       ),
-    );
-  }
+      const SizedBox(height: 10),
+    ],
+  );
 
-  /// DROPDOWN
+  Widget _field(TextEditingController ctrl, String label,
+      {String? Function(String?)? validator}) =>
+      _wrap(label, TextFormField(
+        controller: ctrl, validator: validator,
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+        decoration: const InputDecoration(border: InputBorder.none,
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+      ));
 
-  Widget dropdown(String label,String value,List<String> items,Function(String?) onChanged){
+  Widget _numField(TextEditingController ctrl, String label) =>
+      _wrap(label, TextFormField(
+        controller: ctrl,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+        decoration: const InputDecoration(border: InputBorder.none,
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+      ));
 
-    return DropdownButtonFormField<String>(
+  Widget _dropdown(String label, List<String> items, String val,
+      ValueChanged<String?> onChanged) =>
+      _wrap(label, DropdownButtonFormField<String>(
+        value: val, dropdownColor: AppColors.bgSecondary,
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+        decoration: const InputDecoration(border: InputBorder.none,
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 4)),
+        items: items.map((i) => DropdownMenuItem(value: i,
+            child: Text(i, style: const TextStyle(color: AppColors.textPrimary)))).toList(),
+        onChanged: onChanged,
+      ));
 
-      value: value.isEmpty ? null : value,
+  Widget _row2(Widget a, Widget b) => Row(children: [
+    Expanded(child: Padding(padding: const EdgeInsets.only(right: 6), child: a)),
+    Expanded(child: Padding(padding: const EdgeInsets.only(left: 6), child: b)),
+  ]);
 
-      dropdownColor: Colors.white,
-      iconEnabledColor: Colors.white,
+  Widget _row3(Widget a, Widget b, Widget c) => Row(children: [
+    Expanded(child: Padding(padding: const EdgeInsets.only(right: 4), child: a)),
+    Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: b)),
+    Expanded(child: Padding(padding: const EdgeInsets.only(left: 4), child: c)),
+  ]);
 
-      decoration: InputDecoration(
-        hintText: label,
-        filled: true,
-        fillColor: AppColors.inputFill,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-
-      selectedItemBuilder: (context){
-        return items.map((e){
-          return Text(e,style: const TextStyle(color: Colors.white));
-        }).toList();
-      },
-
-      items: items.map((e)=>DropdownMenuItem(
-        value: e,
-        child: Text(e,style: const TextStyle(color: Colors.black)),
-      )).toList(),
-
-      onChanged: onChanged,
-    );
-  }
+  String? _req(String? v) =>
+      (v == null || v.trim().isEmpty) ? 'Required' : null;
 }

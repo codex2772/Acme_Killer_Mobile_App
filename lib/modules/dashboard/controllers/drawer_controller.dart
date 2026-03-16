@@ -1,28 +1,18 @@
 import 'package:get/get.dart';
+import '../../../core/controllers/auth_controller.dart';
+import '../../../routes/app_routes.dart';
 
 class AppDrawerController extends GetxController {
-  var role = "owner".obs;
-
-  var stores = [
-    "Rajmahal Jewellers - Main",
-    "Rajmahal Jewellers - Surat",
-    "Rajmahal Jewellers - Mumbai",
-  ];
-
-  var selectedStore = RxnString();
-
-  void changeStore(String? value) {
-    selectedStore.value = value;
+  AuthController get _auth {
+    try { return Get.find<AuthController>(); } catch (_) { return AuthController(); }
   }
 
-  String get activeStore {
-    if (selectedStore.value == null) {
-      return "All Stores";
-    }
-    return selectedStore.value!.replaceAll("Rajmahal Jewellers - ", "");
-  }
+  String get role => _auth.role.isEmpty ? 'owner' : _auth.role;
+  String get userName => _auth.userName;
+  String get userInitials => _auth.userInitials;
 
-  void logout() {
-    Get.offAllNamed("/role-select");
+  void logout() async {
+    try { await _auth.logout(); }
+    catch (_) { Get.offAllNamed(AppRoutes.roleSelect); }
   }
 }

@@ -8,67 +8,29 @@ class CustomerStats extends GetView<CustomerController> {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      return Padding(
-        padding: const EdgeInsets.all(12),
-
-        child: Column(
-          children: [
-            Row(
-              children: [
-                statCard("Customers", controller.totalCustomers.toString()),
-
-                statCard("VIP", controller.vipCustomers.toString()),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                statCard("Revenue", "₹${controller.lifetimeRevenue}"),
-
-                statCard(
-                  "Outstanding",
-                  controller.outstandingCustomers.toString(),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    });
+    return Obx(() => Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+      child: Row(children: [
+        _chip('${controller.totalCount}',     'Total',       AppColors.info),
+        _chip('${controller.vipCount}',        'VIP',         AppColors.goldPrimary),
+        _chip(controller.lifetimeRevenueFormatted, 'Revenue', AppColors.success),
+        _chip('${controller.outstandingCount}','Outstanding', AppColors.error),
+      ]),
+    ));
   }
 
-  Widget statCard(String title, String value) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.only(right: 6),
-        padding: const EdgeInsets.all(10),
-
-        decoration: BoxDecoration(
-          color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(10),
-        ),
-
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.goldPrimary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            Text(
-              title,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 11,
-              ),
-            ),
-          ],
-        ),
+  Widget _chip(String val, String label, Color color) => Expanded(
+    child: Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
-    );
-  }
+      child: Column(children: [
+        Text(val, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+      ]),
+    ),
+  );
 }

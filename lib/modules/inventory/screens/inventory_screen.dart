@@ -1,250 +1,148 @@
-import 'package:acme_killer_mobile_app/core/constants/app_colors.dart';
-import 'package:acme_killer_mobile_app/core/controllers/store_controller.dart';
-import 'package:acme_killer_mobile_app/modules/inventory/controllers/inventory_controller.dart';
-import 'package:acme_killer_mobile_app/routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../routes/app_routes.dart';
+import '../controllers/inventory_controller.dart';
+import '../widgets/inventory_card.dart';
 
 class InventoryScreen extends GetView<InventoryController> {
   InventoryScreen({super.key});
-
-  final storeController = Get.find<StoreController>();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
-
       appBar: AppBar(
         backgroundColor: AppColors.bgPrimary,
         elevation: 0,
-        title: const Text(
-          "Inventory",
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.white),
+          icon: const Icon(Icons.arrow_back_ios_new,
+              color: AppColors.textPrimary, size: 18),
           onPressed: () => Get.back(),
         ),
-      ),
-
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.goldPrimary,
-        onPressed: () => Get.toNamed(AppRoutes.addInventory),
-        child: const Icon(Icons.add, color: Colors.black),
+        title: const Text('Inventory',
+            style: TextStyle(
+                color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+        actions: [
+          // Export
+          IconButton(
+            icon: const Icon(Icons.download_outlined,
+                color: AppColors.textSecondary),
+            tooltip: 'Export',
+            onPressed: _showExportSheet,
+          ),
+          // Add
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: TextButton.icon(
+              onPressed: () => Get.toNamed(AppRoutes.addInventory),
+              icon: const Icon(Icons.add, color: Colors.black, size: 16),
+              label: const Text('Add', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              style: TextButton.styleFrom(
+                backgroundColor: AppColors.goldPrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+              ),
+            ),
+          ),
+        ],
       ),
 
       body: Column(
         children: [
-          /// STORE SELECTOR
+          // ── Stats row ──
+          Obx(() => _statsRow()),
+          const SizedBox(height: 2),
+
+          // ── Search ──
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-            child: Obx(() {
-              final stores = storeController.stores;
-              final selected = storeController.selectedStore.value;
-
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.bgCard,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: selected,
-                    dropdownColor: AppColors.bgCard,
-                    icon: const Icon(Icons.store, color: AppColors.goldPrimary),
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    items: stores.map((store) {
-                      return DropdownMenuItem(
-                        value: store,
-                        child: Text(
-                          store,
-                          style: const TextStyle(color: AppColors.textPrimary),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      storeController.selectedStore.value = value!;
-                    },
-                  ),
-                ),
-              );
-            }),
-          ),
-
-          /// STATS
-          Obx(() {
-            final items = controller.filteredInventory;
-
-            final inStock = items.where((e) => e.status == "In Stock").length;
-            final lowStock = items.where((e) => e.status == "Low Stock").length;
-            final value = items.fold(0, (sum, i) => sum + i.sellingPrice);
-
-            return Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  statCard("Total", items.length.toString()),
-                  statCard("Stock", inStock.toString()),
-                  statCard("Low", lowStock.toString()),
-                  statCard("Value", "₹$value"),
-                ],
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.inputFill,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
               ),
-            );
-          }),
-
-          /// SEARCH
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: TextField(
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                hintText: "Search item, HUID...",
-                hintStyle: const TextStyle(color: AppColors.textMuted),
-                prefixIcon: const Icon(
-                  Icons.search,
-                  color: AppColors.textMuted,
+              child: TextField(
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: const InputDecoration(
+                  hintText: 'Search name, HUID, barcode...',
+                  hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
+                  prefixIcon: Icon(Icons.search, color: AppColors.textMuted, size: 20),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(vertical: 14),
                 ),
-                filled: true,
-                fillColor: AppColors.inputFill,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
+                onChanged: (v) => controller.searchQuery.value = v,
               ),
-              onChanged: (v) => controller.searchQuery.value = v,
             ),
           ),
 
           const SizedBox(height: 10),
 
-          /// FILTER CHIPS
+          // ── Filter pills ──
           SizedBox(
-            height: 40,
+            height: 36,
             child: ListView(
               scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               children: [
-                filterChip("all"),
-                filterChip("gold"),
-                filterChip("silver"),
-                filterChip("platinum"),
+                _pill('all', 'All'),
+                _pill('gold', 'Gold'),
+                _pill('silver', 'Silver'),
+                _pill('platinum', 'Platinum'),
+                _pill('diamond', 'Diamond'),
+                _pill('lowstock', '⚠ Low Stock', warning: true),
               ],
             ),
           ),
-
           const SizedBox(height: 10),
 
-          /// INVENTORY LIST
+          // ── List ──
           Expanded(
             child: Obx(() {
               final items = controller.filteredInventory;
-
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: items.length,
-                itemBuilder: (_, index) {
-                  final item = items[index];
-
-                  return GestureDetector(
-                    onTap: () {
-                      Get.toNamed(AppRoutes.inventoryDetail, arguments: item);
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgCard,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.border),
+              if (controller.isLoading.value) {
+                return const Center(
+                    child: CircularProgressIndicator(color: AppColors.goldPrimary));
+              }
+              if (items.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.inventory_2_outlined,
+                          color: AppColors.textMuted, size: 52),
+                      const SizedBox(height: 12),
+                      const Text('No items found',
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () => Get.toNamed(AppRoutes.addInventory),
+                        child: const Text('Add first item',
+                            style: TextStyle(color: AppColors.goldPrimary)),
                       ),
-                      child: Row(
-                        children: [
-                          /// ICON
-                          const Icon(
-                            Icons.diamond,
-                            color: AppColors.goldPrimary,
-                          ),
-
-                          const SizedBox(width: 12),
-
-                          /// ITEM INFO
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.name,
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-
-                                const SizedBox(height: 2),
-
-                                Text(
-                                  "${item.metal} • ${item.purity}",
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 12,
-                                  ),
-                                ),
-
-                                Text(
-                                  "${item.netWeight} g",
-                                  style: const TextStyle(
-                                    color: AppColors.textMuted,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          /// PRICE + STATUS
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                "₹${item.sellingPrice}",
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-
-                              const SizedBox(height: 4),
-
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: item.stockStatus == "Low Stock"
-                                      ? AppColors.warning.withOpacity(.15)
-                                      : AppColors.success.withOpacity(.15),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  item.stockStatus,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: item.stockStatus == "Low Stock"
-                                        ? AppColors.warning
-                                        : AppColors.success,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+                    ],
+                  ),
+                );
+              }
+              return RefreshIndicator(
+                color: AppColors.goldPrimary,
+                backgroundColor: AppColors.bgSecondary,
+                onRefresh: () async => controller.inventory.refresh(),
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 100),
+                  itemCount: items.length,
+                  itemBuilder: (_, i) {
+                    final item = items[i];
+                    return InventoryCard(
+                      item: item,
+                      onTap: () =>
+                          Get.toNamed(AppRoutes.inventoryDetail, arguments: item),
+                      onEdit: () =>
+                          Get.toNamed(AppRoutes.editInventory, arguments: item),
+                    );
+                  },
+                ),
               );
             }),
           ),
@@ -253,82 +151,145 @@ class InventoryScreen extends GetView<InventoryController> {
     );
   }
 
-  void exportCSV() {
-    String csv = "Name,Category,Metal,Purity,Weight,Price\n";
-
-    for (var item in controller.inventory) {
-      csv +=
-          "${item.name},${item.category},${item.metal},${item.purity},${item.netWeight},${item.sellingPrice}\n";
-    }
-
-    print(csv); // later download
-
-    Get.snackbar("Export", "Inventory exported successfully");
+  // ── Stats row ──
+  Widget _statsRow() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+      child: Row(
+        children: [
+          _statChip('${controller.totalItems}',   'Total',     AppColors.goldPrimary),
+          _statChip('${controller.inStockCount}',  'In Stock',  AppColors.success),
+          _statChip('${controller.lowStockCount}', 'Low Stock', AppColors.warning),
+          _statChipWide(controller.stockValueFormatted, 'Value', AppColors.info),
+        ],
+      ),
+    );
   }
 
-  // void importCSV() {
-  //   controller.inventory.add(
-  //     Inventory(
-  //       name: "Imported Ring",
-  //       category: "Ring",
-  //       metal: "Gold",
-  //       purity: "22K",
-  //       weight: 5,
-  //       sellingPrice: 20000,
-  //       status: "In Stock",
-  //     ),
-  //   );
+  Widget _statChip(String val, String label, Color color) => Expanded(
+    child: Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(val, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+        ],
+      ),
+    ),
+  );
 
-  //   Get.snackbar("Import", "CSV Imported");
-  // }
+  Widget _statChipWide(String val, String label, Color color) => Expanded(
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(val, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold)),
+          Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+        ],
+      ),
+    ),
+  );
 
-  /// STATS CARD
-  Widget statCard(String title, String value) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.only(right: 6),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
+  // ── Filter pill ──
+  Widget _pill(String value, String label, {bool warning = false}) {
+    return Obx(() {
+      final active = controller.selectedFilter.value == value;
+      final color = warning ? AppColors.warning : AppColors.goldPrimary;
+      return GestureDetector(
+        onTap: () => controller.selectedFilter.value = value,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: active ? color : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  color: active ? (warning ? Colors.black : Colors.black) : color,
+                  fontSize: 12,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.normal)),
+        ),
+      );
+    });
+  }
+
+  // ── Export bottom sheet ──
+  void _showExportSheet() {
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        decoration: const BoxDecoration(
+          color: AppColors.bgSecondary,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.goldPrimary,
-                fontWeight: FontWeight.bold,
-              ),
+            Center(
+              child: Container(width: 36, height: 4,
+                  decoration: BoxDecoration(color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2))),
             ),
-            Text(
-              title,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 11,
-              ),
-            ),
+            const SizedBox(height: 16),
+            const Text('Export Inventory',
+                style: TextStyle(color: AppColors.textPrimary,
+                    fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text('${controller.filteredInventory.length} items will be exported',
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+            const SizedBox(height: 20),
+            Row(children: [
+              Expanded(child: _exportBtn('CSV',   Icons.table_chart_outlined)),
+              const SizedBox(width: 10),
+              Expanded(child: _exportBtn('Excel', Icons.grid_on_outlined)),
+              const SizedBox(width: 10),
+              Expanded(child: _exportBtn('PDF',   Icons.picture_as_pdf_outlined)),
+            ]),
           ],
         ),
       ),
     );
   }
 
-  /// FILTER CHIP
-  Widget filterChip(String value) {
-    return Obx(
-      () => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: ChoiceChip(
-          label: Text(value),
-          labelStyle: const TextStyle(color: AppColors.textPrimary),
-          selected: controller.selectedFilter.value == value,
-          selectedColor: AppColors.goldPrimary,
+  Widget _exportBtn(String label, IconData icon) => GestureDetector(
+    onTap: () {
+      Get.back();
+      Get.snackbar('Export', '$label export coming soon',
           backgroundColor: AppColors.bgCard,
-          onSelected: (_) => controller.selectedFilter.value = value,
-        ),
+          colorText: AppColors.textPrimary,
+          snackPosition: SnackPosition.BOTTOM,
+          margin: const EdgeInsets.all(12));
+    },
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
       ),
-    );
-  }
+      child: Column(
+        children: [
+          Icon(icon, color: AppColors.goldPrimary, size: 24),
+          const SizedBox(height: 6),
+          Text(label, style: const TextStyle(color: AppColors.textPrimary,
+              fontSize: 12, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    ),
+  );
 }

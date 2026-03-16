@@ -1,6 +1,7 @@
 class PaymentSplit {
-  String mode;
-  int amount;
+  final String mode;
+  final int amount;
+  final String? reference;
 
-  PaymentSplit({required this.mode, required this.amount});
+  const PaymentSplit({required this.mode, required this.amount, this.reference});
 }
