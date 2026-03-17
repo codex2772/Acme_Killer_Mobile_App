@@ -12,70 +12,70 @@ class SettingsScreen extends GetView<SettingsController> {
       'id': 'invoice',
       'title': 'Invoice Settings',
       'desc': 'Prefix, GST, template, making charges',
-      'icon': 0xe1c1,
+      'icon': Icons.receipt_long_outlined,
       'color': 0xFFD4AF37,
     }, // receipt_long
     {
       'id': 'loyalty',
       'title': 'Loyalty Program',
       'desc': 'Points, tiers, redemption rules',
-      'icon': 0xe5f7,
+      'icon': Icons.star_outline,
       'color': 0xFFF472B6,
     }, // stars
     {
       'id': 'whatsapp',
       'title': 'WhatsApp Integration',
       'desc': 'API settings, auto-messages',
-      'icon': 0xe0c9,
+      'icon': Icons.chat_bubble_outline,
       'color': 0xFF4ADE80,
     }, // chat_bubble
     {
       'id': 'language',
       'title': 'Language & Region',
       'desc': 'Display language, currency format',
-      'icon': 0xe894,
+      'icon': Icons.language,
       'color': 0xFF60A5FA,
     }, // language
     {
       'id': 'backup',
       'title': 'Backup & Data',
       'desc': 'Auto-backup, export, restore',
-      'icon': 0xe1db,
+      'icon': Icons.backup_outlined,
       'color': 0xFFFBBF24,
     }, // backup
     {
       'id': 'theme',
       'title': 'Appearance',
       'desc': 'Theme, fonts, display preferences',
-      'icon': 0xe40a,
+      'icon': Icons.palette_outlined,
       'color': 0xFFC084FC,
     }, // palette
     {
       'id': 'rates',
       'title': 'Rate Configuration',
       'desc': 'Auto-fetch, sources, update schedule',
-      'icon': 0xe5d5,
+      'icon': Icons.sync,
       'color': 0xFFF0D060,
     }, // sync
     {
       'id': 'terms',
       'title': 'Terms & Conditions',
       'desc': 'Invoice terms, return policy',
-      'icon': 0xe873,
+      'icon': Icons.description_outlined,
       'color': 0xFF94A3B8,
     }, // description
     {
       'id': 'activityLogs',
       'title': 'Activity Logs',
       'desc': 'User actions, audit trail',
-      'icon': 0xe1d8,
+      'icon': Icons.history,
       'color': 0xFFF87171,
     }, // manage_history
     {
       'id': 'categoriesMetal',
       'title': 'Categories & Metal Types',
       'desc': 'Manage jewelry categories and metal types',
-      'icon': 0xe1bf,
+      'icon': Icons.inventory_2_outlined,
       'color': 0xFFD4AF37,
     }, // inventory_2
   ];
@@ -122,7 +122,7 @@ class SettingsScreen extends GetView<SettingsController> {
               id: c['id'] as String,
               title: c['title'] as String,
               desc: c['desc'] as String,
-              iconData: IconData(c['icon'] as int, fontFamily: 'MaterialIcons'),
+              iconData: c['icon'] as IconData,
               color: Color(c['color'] as int),
             ),
           ),

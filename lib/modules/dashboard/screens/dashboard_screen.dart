@@ -350,7 +350,7 @@ class DashboardScreen extends GetView<DashboardController> {
           children: controller.quickActions.map((a) {
             return QuickActionCard(
               title: a.label,
-              icon: IconData(a.iconCode, fontFamily: 'MaterialIcons'),
+              icon: a.iconCode,
               color: Color(a.color),
               onTap: () => Get.toNamed(a.route),
             );

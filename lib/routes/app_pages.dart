@@ -38,6 +38,7 @@ import 'package:acme_killer_mobile_app/modules/settings/screens/settings_screen.
 import 'package:acme_killer_mobile_app/modules/splash/screens/splash_screen.dart';
 import 'package:acme_killer_mobile_app/modules/staff/bindings/staff_binding.dart';
 import 'package:acme_killer_mobile_app/modules/staff/screens/add_staff_screen.dart';
+import 'package:acme_killer_mobile_app/modules/staff/screens/edit_staff_screen.dart';
 import 'package:acme_killer_mobile_app/modules/staff/screens/staff_detail_screen.dart';
 import 'package:acme_killer_mobile_app/modules/staff/screens/staff_management_screen.dart';
 import 'package:acme_killer_mobile_app/routes/app_routes.dart';
@@ -78,6 +79,7 @@ class AppPages {
     GetPage(name: AppRoutes.staff,       page: () => StaffManagementScreen(), binding: StaffBinding()),
     GetPage(name: AppRoutes.addStaff,    page: () => AddStaffScreen()),
     GetPage(name: AppRoutes.staffDetail, page: () => StaffDetailScreen()),
+    GetPage(name: AppRoutes.editStaff,   page: () => const EditStaffScreen()),   // ← FIXED: was missing
 
         // ── Accounts ──
     GetPage(name: AppRoutes.accounts,       page: () => AccountsScreen(), binding: AccountsBinding()),

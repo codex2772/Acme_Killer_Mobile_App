@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import '../../../core/controllers/auth_controller.dart';
 import '../../../core/controllers/store_controller.dart';
@@ -31,9 +33,24 @@ class DashInvoice {
   String get formattedDate {
     try {
       final d = DateTime.parse(date);
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       return '${d.day} ${months[d.month - 1]}';
-    } catch (_) { return date; }
+    } catch (_) {
+      return date;
+    }
   }
 }
 
@@ -90,13 +107,69 @@ class DashboardController extends GetxController {
 
   // ── All invoices (demo data — mirrors state.js invoices) ──
   final List<DashInvoice> _allInvoices = const [
-    DashInvoice(id: 'BIL001', customer: 'Priya Sharma',  amount: 364250, status: 'Paid',    date: '2026-03-09', store: 'Rajmahal Jewellers - Main',        type: 'invoice'),
-    DashInvoice(id: 'BIL002', customer: 'Rahul Mehta',   amount: 145000, status: 'Paid',    date: '2026-03-08', store: 'Rajmahal Jewellers - Mall Road',    type: 'invoice'),
-    DashInvoice(id: 'BIL003', customer: 'Anita Desai',   amount: 598500, status: 'Partial', date: '2026-03-07', store: 'Rajmahal Jewellers - Main',        type: 'invoice'),
-    DashInvoice(id: 'BIL004', customer: 'Vikram Singh',  amount: 52000,  status: 'Pending', date: '2026-03-05', store: 'Rajmahal Jewellers - City Center', type: 'invoice'),
-    DashInvoice(id: 'BIL005', customer: 'Meera Patel',   amount: 198000, status: 'Pending', date: '2026-03-04', store: 'Rajmahal Jewellers - Main',        type: 'invoice'),
-    DashInvoice(id: 'EST001', customer: 'Suresh Kumar',  amount: 420000, status: 'Pending', date: '2026-03-06', store: 'Rajmahal Jewellers - Mall Road',   type: 'estimate'),
-    DashInvoice(id: 'CN001',  customer: 'Kavita Nair',   amount: 18500,  status: 'Paid',    date: '2026-03-03', store: 'Rajmahal Jewellers - Main',        type: 'credit-note'),
+    DashInvoice(
+      id: 'BIL001',
+      customer: 'Priya Sharma',
+      amount: 364250,
+      status: 'Paid',
+      date: '2026-03-09',
+      store: 'Rajmahal Jewellers - Main',
+      type: 'invoice',
+    ),
+    DashInvoice(
+      id: 'BIL002',
+      customer: 'Rahul Mehta',
+      amount: 145000,
+      status: 'Paid',
+      date: '2026-03-08',
+      store: 'Rajmahal Jewellers - Mall Road',
+      type: 'invoice',
+    ),
+    DashInvoice(
+      id: 'BIL003',
+      customer: 'Anita Desai',
+      amount: 598500,
+      status: 'Partial',
+      date: '2026-03-07',
+      store: 'Rajmahal Jewellers - Main',
+      type: 'invoice',
+    ),
+    DashInvoice(
+      id: 'BIL004',
+      customer: 'Vikram Singh',
+      amount: 52000,
+      status: 'Pending',
+      date: '2026-03-05',
+      store: 'Rajmahal Jewellers - City Center',
+      type: 'invoice',
+    ),
+    DashInvoice(
+      id: 'BIL005',
+      customer: 'Meera Patel',
+      amount: 198000,
+      status: 'Pending',
+      date: '2026-03-04',
+      store: 'Rajmahal Jewellers - Main',
+      type: 'invoice',
+    ),
+    DashInvoice(
+      id: 'EST001',
+      customer: 'Suresh Kumar',
+      amount: 420000,
+      status: 'Pending',
+      date: '2026-03-06',
+      store: 'Rajmahal Jewellers - Mall Road',
+      type: 'estimate',
+    ),
+    DashInvoice(
+      id: 'CN001',
+      customer: 'Kavita Nair',
+      amount: 18500,
+      status: 'Paid',
+      date: '2026-03-03',
+      store: 'Rajmahal Jewellers - Main',
+      type: 'credit-note',
+    ),
   ];
 
   // ── Store-filtered invoices (mirrors filterByStore in dashboard.js) ──
@@ -108,25 +181,55 @@ class DashboardController extends GetxController {
 
   List<DashInvoice> get recentInvoices => invoices.take(5).toList();
 
-  List<DashInvoice> get pendingInvoices =>
-      invoices.where((i) => i.status == 'Pending' || i.status == 'Partial').toList();
+  List<DashInvoice> get pendingInvoices => invoices
+      .where((i) => i.status == 'Pending' || i.status == 'Partial')
+      .toList();
 
   int get pendingTotalAmount =>
       pendingInvoices.fold(0, (sum, i) => sum + i.amount);
 
   // ── Gold rate formatted ──
   String get gold22kDisplay => '₹${_formatNum(gold22k.value)}/g';
-  String get gold22kTola   => '₹${_formatNum((gold22k.value * 11.664).round())}/tola';
+  String get gold22kTola =>
+      '₹${_formatNum((gold22k.value * 11.664).round())}/tola';
 
   // ── Quick actions (role-aware, mirrors dashboard.js quickActions) ──
   List<_QuickAction> get quickActions => [
-    const _QuickAction(label: 'New Invoice',  route: '/create-invoice', color: 0xFFD4AF37, iconCode: 0xe147),
-    const _QuickAction(label: 'Add Item',     route: '/add-inventory',  color: 0xFF4ADE80, iconCode: 0xe047),
-    const _QuickAction(label: 'Add Customer', route: '/add-customer',   color: 0xFF60A5FA, iconCode: 0xe7fe),
+    const _QuickAction(
+      label: 'New Invoice',
+      route: '/create-invoice',
+      color: 0xFFD4AF37,
+      iconCode: Icons.receipt_long_outlined,
+    ),
+
+    const _QuickAction(
+      label: 'Add Item',
+      route: '/add-inventory',
+      color: 0xFF4ADE80,
+      iconCode: Icons.inventory_2_outlined,
+    ),
+
+    const _QuickAction(
+      label: 'Add Customer',
+      route: '/add-customer',
+      color: 0xFF60A5FA,
+      iconCode: Icons.person_add_alt_1_outlined,
+    ),
+
     if (isOwner)
-      const _QuickAction(label: 'Add Staff',      route: '/add-staff',   color: 0xFFF472B6, iconCode: 0xe7fb)
+      const _QuickAction(
+        label: 'Add Staff',
+        route: '/add-staff',
+        color: 0xFFF472B6,
+        iconCode: Icons.badge_outlined,
+      )
     else
-      const _QuickAction(label: 'Record Payment', route: '/accounts',    color: 0xFFC084FC, iconCode: 0xe227),
+      const _QuickAction(
+        label: 'Record Payment',
+        route: '/accounts',
+        color: 0xFFC084FC,
+        iconCode: Icons.payments_outlined ,
+      ),
   ];
 
   // ── Load stats from API (with demo fallback) ──
@@ -140,8 +243,11 @@ class DashboardController extends GetxController {
 
   void _recalcFromStore() {
     // Recalculate today's sales from filtered invoices
-    final filtered = invoices.where((i) =>
-        i.date == DateTime.now().toIso8601String().substring(0, 10)).toList();
+    final filtered = invoices
+        .where(
+          (i) => i.date == DateTime.now().toIso8601String().substring(0, 10),
+        )
+        .toList();
     if (filtered.isNotEmpty) {
       todaySales.value = filtered.fold(0, (s, i) => s + i.amount);
     }
@@ -159,15 +265,16 @@ class DashboardController extends GetxController {
 
   String _formatNum(int n) {
     if (n >= 10000000) return '${(n / 10000000).toStringAsFixed(2)}Cr';
-    if (n >= 100000)   return '${(n / 100000).toStringAsFixed(2)}L';
-    if (n >= 1000)     return '${(n / 1000).toStringAsFixed(0)},${(n % 1000).toString().padLeft(3, '0')}';
+    if (n >= 100000) return '${(n / 100000).toStringAsFixed(2)}L';
+    if (n >= 1000)
+      return '${(n / 1000).toStringAsFixed(0)},${(n % 1000).toString().padLeft(3, '0')}';
     return '$n';
   }
 
   String formatCurrency(int val) {
     if (val >= 10000000) return '₹${(val / 10000000).toStringAsFixed(1)}Cr';
-    if (val >= 100000)   return '₹${(val / 100000).toStringAsFixed(1)}L';
-    if (val >= 1000)     return '₹${(val / 1000).toStringAsFixed(0)}K';
+    if (val >= 100000) return '₹${(val / 100000).toStringAsFixed(1)}L';
+    if (val >= 1000) return '₹${(val / 1000).toStringAsFixed(0)}K';
     return '₹$val';
   }
 }
@@ -176,6 +283,11 @@ class _QuickAction {
   final String label;
   final String route;
   final int color;
-  final int iconCode;
-  const _QuickAction({required this.label, required this.route, required this.color, required this.iconCode});
+  final IconData iconCode;
+  const _QuickAction({
+    required this.label,
+    required this.route,
+    required this.color,
+    required this.iconCode,
+  });
 }
