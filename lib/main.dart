@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'core/bindings/initial_binding.dart';
 import 'routes/app_pages.dart';
 import 'routes/app_routes.dart';
+import 'services/localization_service.dart';
 import 'services/storage_service.dart';
 
 Future<void> main() async {
@@ -20,6 +21,12 @@ Future<void> main() async {
     final svc = StorageService();
     return await svc.init();
   }, permanent: true);
+
+  // LocalizationService — restore persisted language (EN/MR/HI)
+  // mirrors Electron i18n.js initLanguage()
+  final loc = LocalizationService();
+  await loc.init();
+  Get.put<LocalizationService>(loc, permanent: true);
 
   runApp(const MainApp());
 }

@@ -21,7 +21,11 @@ class StorageService extends GetxService {
   Future<UserSession?> getSession() async {
     final raw = _prefs.getString(_kSession);
     if (raw == null) return null;
-    try { return UserSession.fromJson(jsonDecode(raw)); } catch (_) { return null; }
+    try {
+      return UserSession.fromJson(jsonDecode(raw));
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> saveAccessToken(String t) => _prefs.setString(_kAccess, t);

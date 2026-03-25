@@ -71,7 +71,7 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
                     icon: Icons.storefront_rounded,
                     color: AppColors.goldPrimary,
                     features: const ['Multi-Store', 'Analytics', 'Staff Mgmt', 'Full Control'],
-                    onTap: () => Get.offNamed(AppRoutes.login, arguments: 'owner'),
+                    onTap: () => Get.toNamed(AppRoutes.login, arguments: 'owner'),
                   ),
                   const SizedBox(height: 16),
 
