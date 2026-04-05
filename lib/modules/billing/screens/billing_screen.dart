@@ -5,8 +5,24 @@ import '../../../routes/app_routes.dart';
 import '../controllers/billing_controller.dart';
 import '../../../models/billing/invoice_model.dart';
 
-class BillingScreen extends GetView<BillingController> {
+class BillingScreen extends StatefulWidget {
   BillingScreen({super.key});
+
+  @override
+  State<BillingScreen> createState() => _BillingScreenState();
+}
+
+class _BillingScreenState extends State<BillingScreen> {
+  late final BillingController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.find<BillingController>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.refreshIfStale();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -31,7 +31,8 @@ class StoreContextService extends GetxService {
 
   /// Switch active store — mirrors Electron: store:switch
   /// Sets X-Store-Id header on ApiClient + notifies backend.
-  Future<ApiResult<dynamic>> switchStore(int storeId) async {
+  Future<ApiResult<dynamic>> switchStore(int? storeId) async {
+    if (storeId == null) { clearStore(); return ApiResult.ok(null); }
     _api.setCurrentStoreId(storeId);
     // Notify backend (best-effort — non-blocking)
     return ApiResult.ok({'success': true, 'storeId': storeId});

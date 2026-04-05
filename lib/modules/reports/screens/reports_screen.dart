@@ -15,25 +15,38 @@ class ReportsScreen extends GetView<ReportsController> {
         backgroundColor: AppColors.bgPrimary,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new,
-              color: AppColors.textPrimary, size: 18),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: AppColors.textPrimary,
+            size: 18,
+          ),
           onPressed: () => Get.back(),
         ),
-        title: const Text('Reports & Analytics',
-            style: TextStyle(
-                color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Reports & Analytics',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.download_outlined,
-                color: AppColors.textSecondary),
-            tooltip: 'Export Summary',
-            onPressed: () => Get.snackbar(
-              'Export', 'Reports summary exported!',
-              backgroundColor: AppColors.bgCard,
-              colorText: AppColors.textPrimary,
-              snackPosition: SnackPosition.BOTTOM,
-              margin: const EdgeInsets.all(12),
+            icon: const Icon(
+              Icons.download_outlined,
+              color: AppColors.textSecondary,
             ),
+            tooltip: 'Export Summary',
+            onPressed: () {
+              final count = ReportsController.reportTypes.length;
+              Get.snackbar(
+                'Reports Summary',
+                '$count report types available — tap any to generate with live data',
+                backgroundColor: AppColors.bgCard,
+                colorText: AppColors.textPrimary,
+                snackPosition: SnackPosition.BOTTOM,
+                margin: const EdgeInsets.all(12),
+              );
+            },
           ),
         ],
       ),
@@ -42,14 +55,23 @@ class ReportsScreen extends GetView<ReportsController> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-            child: Row(children: [
-              const Icon(Icons.bar_chart_outlined,
-                  color: AppColors.goldPrimary, size: 15),
-              const SizedBox(width: 7),
-              const Text('Click any report to generate it',
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.bar_chart_outlined,
+                  color: AppColors.goldPrimary,
+                  size: 15,
+                ),
+                const SizedBox(width: 7),
+                const Text(
+                  'Click any report to generate it',
                   style: TextStyle(
-                      color: AppColors.textSecondary, fontSize: 13)),
-            ]),
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: GridView.builder(
@@ -112,9 +134,10 @@ class _ReportCard extends StatelessWidget {
             Text(
               report.title,
               style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13),
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -125,7 +148,10 @@ class _ReportCard extends StatelessWidget {
               child: Text(
                 report.desc,
                 style: const TextStyle(
-                    color: AppColors.textMuted, fontSize: 11, height: 1.4),
+                  color: AppColors.textMuted,
+                  fontSize: 11,
+                  height: 1.4,
+                ),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -137,9 +163,10 @@ class _ReportCard extends StatelessWidget {
                 Text(
                   'Generate',
                   style: TextStyle(
-                      color: color,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600),
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(width: 4),
                 Icon(Icons.arrow_forward_ios_rounded, color: color, size: 10),
@@ -153,17 +180,28 @@ class _ReportCard extends StatelessWidget {
 
   IconData _iconFor(String key) {
     switch (key) {
-      case 'trending':  return Icons.trending_up_rounded;
-      case 'barChart':  return Icons.bar_chart_rounded;
-      case 'alert':     return Icons.warning_amber_rounded;
-      case 'people':    return Icons.people_outline;
-      case 'store':     return Icons.store_outlined;
-      case 'rupee':     return Icons.currency_rupee_rounded;
-      case 'gift':      return Icons.card_giftcard_outlined;
-      case 'clock':     return Icons.schedule_outlined;
-      case 'calendar':  return Icons.calendar_today_outlined;
-      case 'fileText':  return Icons.description_outlined;
-      default:          return Icons.bar_chart_rounded;
+      case 'trending':
+        return Icons.trending_up_rounded;
+      case 'barChart':
+        return Icons.bar_chart_rounded;
+      case 'alert':
+        return Icons.warning_amber_rounded;
+      case 'people':
+        return Icons.people_outline;
+      case 'store':
+        return Icons.store_outlined;
+      case 'rupee':
+        return Icons.currency_rupee_rounded;
+      case 'gift':
+        return Icons.card_giftcard_outlined;
+      case 'clock':
+        return Icons.schedule_outlined;
+      case 'calendar':
+        return Icons.calendar_today_outlined;
+      case 'fileText':
+        return Icons.description_outlined;
+      default:
+        return Icons.bar_chart_rounded;
     }
   }
 }

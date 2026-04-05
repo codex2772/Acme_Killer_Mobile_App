@@ -15,26 +15,38 @@ class PermDef {
 }
 
 const kAllPermissions = [
-  PermDef(id: 'inventory_view',   label: 'View Inventory',   group: 'Inventory'),
-  PermDef(id: 'inventory_manage', label: 'Manage Inventory', group: 'Inventory'),
-  PermDef(id: 'customer_view',    label: 'View Customers',   group: 'Customers'),
-  PermDef(id: 'customer_manage',  label: 'Manage Customers', group: 'Customers'),
-  PermDef(id: 'billing_view',     label: 'View Invoices',    group: 'Billing'),
-  PermDef(id: 'billing_create',   label: 'Create Invoices',  group: 'Billing'),
-  PermDef(id: 'accounts_view',    label: 'View Accounts',    group: 'Accounts'),
-  PermDef(id: 'accounts_manage',  label: 'Manage Accounts',  group: 'Accounts'),
-  PermDef(id: 'reports_view',     label: 'View Reports',     group: 'Reports'),
-  PermDef(id: 'old_gold_manage',  label: 'Manage Old Gold',  group: 'Old Gold'),
-  PermDef(id: 'schemes_manage',   label: 'Manage Schemes',   group: 'Schemes'),
-  PermDef(id: 'rates_manage',     label: 'Update Rates',     group: 'Rates'),
-  PermDef(id: 'staff_manage',     label: 'Manage Staff',     group: 'Staff'),  // ← from Electron
+  PermDef(id: 'inventory_view', label: 'View Inventory', group: 'Inventory'),
+  PermDef(
+    id: 'inventory_manage',
+    label: 'Manage Inventory',
+    group: 'Inventory',
+  ),
+  PermDef(id: 'customer_view', label: 'View Customers', group: 'Customers'),
+  PermDef(id: 'customer_manage', label: 'Manage Customers', group: 'Customers'),
+  PermDef(id: 'billing_view', label: 'View Invoices', group: 'Billing'),
+  PermDef(id: 'billing_create', label: 'Create Invoices', group: 'Billing'),
+  PermDef(id: 'accounts_view', label: 'View Accounts', group: 'Accounts'),
+  PermDef(id: 'accounts_manage', label: 'Manage Accounts', group: 'Accounts'),
+  PermDef(id: 'reports_view', label: 'View Reports', group: 'Reports'),
+  PermDef(id: 'old_gold_manage', label: 'Manage Old Gold', group: 'Old Gold'),
+  PermDef(id: 'schemes_manage', label: 'Manage Schemes', group: 'Schemes'),
+  PermDef(id: 'rates_manage', label: 'Update Rates', group: 'Rates'),
+  PermDef(
+    id: 'staff_manage',
+    label: 'Manage Staff',
+    group: 'Staff',
+  ), // ← from Electron
 ];
 
 const kAdminPermissions = [
-  'inventory_view', 'inventory_manage',
-  'customer_view',  'customer_manage',
-  'billing_view',   'billing_create',
-  'accounts_view',  'accounts_manage',
+  'inventory_view',
+  'inventory_manage',
+  'customer_view',
+  'customer_manage',
+  'billing_view',
+  'billing_create',
+  'accounts_view',
+  'accounts_manage',
   'reports_view',
   'old_gold_manage',
   'schemes_manage',
@@ -56,15 +68,15 @@ Map<String, List<PermDef>> get kPermGroups {
 
 class StaffController extends GetxController {
   // ── State ────────────────────────────────────────────────────
-  final RxList<Staff>  staffMembers  = <Staff>[].obs;
-  final RxString       searchQuery   = ''.obs;
-  final RxString       activeFilter  = 'all'.obs;   // all|admin|staff|active|inactive
-  final Rx<Staff?>     selectedStaff = Rx<Staff?>(null);
+  final RxList<Staff> staffMembers = <Staff>[].obs;
+  final RxString searchQuery = ''.obs;
+  final RxString activeFilter = 'all'.obs; // all|admin|staff|active|inactive
+  final Rx<Staff?> selectedStaff = Rx<Staff?>(null);
 
   // API state (mirrors Electron's state._apiStaff / state.isOnline)
-  final RxBool         isOnline      = true.obs;
-  final RxBool         isLoading     = false.obs;
-  List<Staff>?         _apiStaff;   // cache of last API fetch
+  final RxBool isOnline = true.obs;
+  final RxBool isLoading = false.obs;
+  List<Staff>? _apiStaff; // cache of last API fetch
 
   // ── Available stores (mirrors Electron's state.stores) ──────
   static const List<String> kStores = [
@@ -75,8 +87,8 @@ class StaffController extends GetxController {
 
   // ── Store ID lookup (mirrors state.storeObjects) ─────────────
   static const Map<String, int> kStoreIds = {
-    'Rajmahal Jewellers - Main':        1,
-    'Rajmahal Jewellers - Mall Road':   2,
+    'Rajmahal Jewellers - Main': 1,
+    'Rajmahal Jewellers - Mall Road': 2,
     'Rajmahal Jewellers - City Center': 3,
   };
 
@@ -84,99 +96,231 @@ class StaffController extends GetxController {
   void onInit() {
     super.onInit();
     _seedStaff();
+    // mirrors Electron: renderStaffManagement() immediately calls staff.list()
+    fetchFromApi();
   }
 
   // ── Seed local demo data (mirrors Electron's local state) ────
   void _seedStaff() {
     staffMembers.assignAll([
       Staff(
-        id: 'STF001', backendId: '1',
+        id: 'STF001',
+        backendId: '1',
         name: 'Arjun Kapoor',
-        phone: '+91 99887 76655', email: 'arjun.k@jewelerp.com',
-        role: 'admin', store: 'Rajmahal Jewellers - Main', storeIds: [1],
-        status: 'Active', salary: 45000, commission: 0.5,
-        salesTarget: 2000000, currentSales: 1650000,
+        phone: '+91 99887 76655',
+        email: 'arjun.k@jewelerp.com',
+        role: 'admin',
+        store: 'Rajmahal Jewellers - Main',
+        storeIds: [1],
+        status: 'Active',
+        salary: 45000,
+        commission: 0.5,
+        salesTarget: 2000000,
+        currentSales: 1650000,
         joinDate: '2024-06-15',
         permissions: kAdminPermissions,
         attendance: [
-          Attendance(date:'2026-03-12', clockIn:'09:30', clockOut:'19:00', hours:9.5, status:'Present'),
-          Attendance(date:'2026-03-11', clockIn:'09:15', clockOut:'18:45', hours:9.5, status:'Present'),
-          Attendance(date:'2026-03-10', clockIn:'09:45', clockOut:'19:15', hours:9.5, status:'Present'),
-          Attendance(date:'2026-03-09', clockIn:'',      clockOut:'',      hours:0,   status:'Sunday'),
-          Attendance(date:'2026-03-08', clockIn:'09:30', clockOut:'18:30', hours:9.0, status:'Present'),
+          Attendance(
+            date: '2026-03-12',
+            clockIn: '09:30',
+            clockOut: '19:00',
+            hours: 9.5,
+            status: 'Present',
+          ),
+          Attendance(
+            date: '2026-03-11',
+            clockIn: '09:15',
+            clockOut: '18:45',
+            hours: 9.5,
+            status: 'Present',
+          ),
+          Attendance(
+            date: '2026-03-10',
+            clockIn: '09:45',
+            clockOut: '19:15',
+            hours: 9.5,
+            status: 'Present',
+          ),
+          Attendance(
+            date: '2026-03-09',
+            clockIn: '',
+            clockOut: '',
+            hours: 0,
+            status: 'Sunday',
+          ),
+          Attendance(
+            date: '2026-03-08',
+            clockIn: '09:30',
+            clockOut: '18:30',
+            hours: 9.0,
+            status: 'Present',
+          ),
         ],
-        leaves: {'total':24,'used':4,'pending':1,'balance':19},
+        leaves: {'total': 24, 'used': 4, 'pending': 1, 'balance': 19},
       ),
       Staff(
-        id: 'STF002', backendId: '2',
+        id: 'STF002',
+        backendId: '2',
         name: 'Sneha Reddy',
-        phone: '+91 88776 65544', email: 'sneha.r@jewelerp.com',
-        role: 'admin', store: 'Rajmahal Jewellers - Mall Road', storeIds: [2],
-        status: 'Active', salary: 42000, commission: 0.5,
-        salesTarget: 1500000, currentSales: 1280000,
+        phone: '+91 88776 65544',
+        email: 'sneha.r@jewelerp.com',
+        role: 'admin',
+        store: 'Rajmahal Jewellers - Mall Road',
+        storeIds: [2],
+        status: 'Active',
+        salary: 42000,
+        commission: 0.5,
+        salesTarget: 1500000,
+        currentSales: 1280000,
         joinDate: '2024-09-01',
         permissions: kAdminPermissions,
         attendance: [
-          Attendance(date:'2026-03-12', clockIn:'09:00', clockOut:'18:30', hours:9.5, status:'Present'),
-          Attendance(date:'2026-03-11', clockIn:'09:30', clockOut:'19:00', hours:9.5, status:'Present'),
+          Attendance(
+            date: '2026-03-12',
+            clockIn: '09:00',
+            clockOut: '18:30',
+            hours: 9.5,
+            status: 'Present',
+          ),
+          Attendance(
+            date: '2026-03-11',
+            clockIn: '09:30',
+            clockOut: '19:00',
+            hours: 9.5,
+            status: 'Present',
+          ),
         ],
-        leaves: {'total':24,'used':2,'pending':0,'balance':22},
+        leaves: {'total': 24, 'used': 2, 'pending': 0, 'balance': 22},
       ),
       Staff(
-        id: 'STF003', backendId: '3',
+        id: 'STF003',
+        backendId: '3',
         name: 'Ravi Kumar',
-        phone: '+91 77665 54433', email: 'ravi.k@jewelerp.com',
-        role: 'staff', store: 'Rajmahal Jewellers - Main', storeIds: [1],
-        status: 'Active', salary: 28000, commission: 0.3,
-        salesTarget: 800000, currentSales: 520000,
+        phone: '+91 77665 54433',
+        email: 'ravi.k@jewelerp.com',
+        role: 'staff',
+        store: 'Rajmahal Jewellers - Main',
+        storeIds: [1],
+        status: 'Active',
+        salary: 28000,
+        commission: 0.3,
+        salesTarget: 800000,
+        currentSales: 520000,
         joinDate: '2025-01-10',
-        permissions: ['inventory_view','customer_view','billing_create','billing_view'],
-        attendance: [
-          Attendance(date:'2026-03-12', clockIn:'10:00', clockOut:'',      hours:0,    status:'Present'),
-          Attendance(date:'2026-03-11', clockIn:'09:45', clockOut:'18:30', hours:8.75, status:'Present'),
-          Attendance(date:'2026-03-10', clockIn:'',      clockOut:'',      hours:0,    status:'Leave'),
+        permissions: [
+          'inventory_view',
+          'customer_view',
+          'billing_create',
+          'billing_view',
         ],
-        leaves: {'total':18,'used':6,'pending':0,'balance':12},
+        attendance: [
+          Attendance(
+            date: '2026-03-12',
+            clockIn: '10:00',
+            clockOut: '',
+            hours: 0,
+            status: 'Present',
+          ),
+          Attendance(
+            date: '2026-03-11',
+            clockIn: '09:45',
+            clockOut: '18:30',
+            hours: 8.75,
+            status: 'Present',
+          ),
+          Attendance(
+            date: '2026-03-10',
+            clockIn: '',
+            clockOut: '',
+            hours: 0,
+            status: 'Leave',
+          ),
+        ],
+        leaves: {'total': 18, 'used': 6, 'pending': 0, 'balance': 12},
       ),
       Staff(
-        id: 'STF004', backendId: '4',
+        id: 'STF004',
+        backendId: '4',
         name: 'Pooja Nair',
-        phone: '+91 66554 43322', email: 'pooja.n@jewelerp.com',
-        role: 'staff', store: 'Rajmahal Jewellers - Main', storeIds: [1],
-        status: 'Active', salary: 25000, commission: 0.2,
-        salesTarget: 600000, currentSales: 380000,
+        phone: '+91 66554 43322',
+        email: 'pooja.n@jewelerp.com',
+        role: 'staff',
+        store: 'Rajmahal Jewellers - Main',
+        storeIds: [1],
+        status: 'Active',
+        salary: 25000,
+        commission: 0.2,
+        salesTarget: 600000,
+        currentSales: 380000,
         joinDate: '2025-03-20',
-        permissions: ['inventory_view','customer_view','customer_manage','billing_create'],
-        attendance: [
-          Attendance(date:'2026-03-12', clockIn:'09:15', clockOut:'', hours:0, status:'Present'),
+        permissions: [
+          'inventory_view',
+          'customer_view',
+          'customer_manage',
+          'billing_create',
         ],
-        leaves: {'total':18,'used':3,'pending':1,'balance':14},
+        attendance: [
+          Attendance(
+            date: '2026-03-12',
+            clockIn: '09:15',
+            clockOut: '',
+            hours: 0,
+            status: 'Present',
+          ),
+        ],
+        leaves: {'total': 18, 'used': 3, 'pending': 1, 'balance': 14},
       ),
       Staff(
-        id: 'STF005', backendId: '5',
+        id: 'STF005',
+        backendId: '5',
         name: 'Amit Joshi',
-        phone: '+91 55443 32211', email: 'amit.j@jewelerp.com',
-        role: 'staff', store: 'Rajmahal Jewellers - Mall Road', storeIds: [2],
-        status: 'Inactive', salary: 22000, commission: 0.0,
-        salesTarget: 0, currentSales: 0,
+        phone: '+91 55443 32211',
+        email: 'amit.j@jewelerp.com',
+        role: 'staff',
+        store: 'Rajmahal Jewellers - Mall Road',
+        storeIds: [2],
+        status: 'Inactive',
+        salary: 22000,
+        commission: 0.0,
+        salesTarget: 0,
+        currentSales: 0,
         joinDate: '2025-06-05',
-        permissions: ['inventory_view','billing_view'],
+        permissions: ['inventory_view', 'billing_view'],
         attendance: [],
-        leaves: {'total':18,'used':18,'pending':0,'balance':0},
+        leaves: {'total': 18, 'used': 18, 'pending': 0, 'balance': 0},
       ),
       Staff(
-        id: 'STF006', backendId: '6',
+        id: 'STF006',
+        backendId: '6',
         name: 'Deepa Menon',
-        phone: '+91 44332 21100', email: 'deepa.m@jewelerp.com',
-        role: 'staff', store: 'Rajmahal Jewellers - City Center', storeIds: [3],
-        status: 'Active', salary: 26000, commission: 0.25,
-        salesTarget: 700000, currentSales: 445000,
+        phone: '+91 44332 21100',
+        email: 'deepa.m@jewelerp.com',
+        role: 'staff',
+        store: 'Rajmahal Jewellers - City Center',
+        storeIds: [3],
+        status: 'Active',
+        salary: 26000,
+        commission: 0.25,
+        salesTarget: 700000,
+        currentSales: 445000,
         joinDate: '2025-08-12',
-        permissions: ['inventory_view','inventory_manage','customer_view','billing_create','billing_view'],
-        attendance: [
-          Attendance(date:'2026-03-12', clockIn:'09:30', clockOut:'', hours:0, status:'Present'),
+        permissions: [
+          'inventory_view',
+          'inventory_manage',
+          'customer_view',
+          'billing_create',
+          'billing_view',
         ],
-        leaves: {'total':18,'used':2,'pending':0,'balance':16},
+        attendance: [
+          Attendance(
+            date: '2026-03-12',
+            clockIn: '09:30',
+            clockOut: '',
+            hours: 0,
+            status: 'Present',
+          ),
+        ],
+        leaves: {'total': 18, 'used': 2, 'pending': 0, 'balance': 16},
       ),
     ]);
   }
@@ -202,10 +346,13 @@ class StaffController extends GetxController {
 
   /// Create staff via backend.
   /// Mirrors Electron: window.jewelERP.staff.create(payload) → POST /api/staff
-  Future<({bool success, String? error})> createViaApi(Staff s, String password) async {
+  Future<({bool success, String? error})> createViaApi(
+    Staff s,
+    String password,
+  ) async {
     final storeId = kStoreIds[s.store] ?? 1;
     final payload = s.toBackendPayload(storeIds: [storeId], password: password);
-    final result  = await Get.find<ApiService>().staffCreate(payload);
+    final result = await Get.find<ApiService>().staffCreate(payload);
     return (success: result.success, error: result.error);
   }
 
@@ -216,7 +363,7 @@ class StaffController extends GetxController {
     if (backendId == null) return (success: false, error: 'No backend ID');
     final storeId = kStoreIds[s.store] ?? 1;
     final payload = s.toBackendPayload(storeIds: [storeId]);
-    final result  = await Get.find<ApiService>().staffUpdate(backendId, payload);
+    final result = await Get.find<ApiService>().staffUpdate(backendId, payload);
     return (success: result.success, error: result.error);
   }
 
@@ -251,25 +398,25 @@ class StaffController extends GetxController {
     if (idx == -1) return;
     final old = staffMembers[idx];
     staffMembers[idx] = Staff(
-      id:           old.id,
-      backendId:    old.backendId,
-      name:         name         ?? old.name,
-      phone:        phone        ?? old.phone,
-      email:        email        ?? old.email,
-      role:         role         ?? old.role,
-      store:        old.store,
-      storeIds:     old.storeIds,
-      status:       status       ?? old.status,
-      salary:       salary       ?? old.salary,
-      commission:   commission   ?? old.commission,
-      salesTarget:  salesTarget  ?? old.salesTarget,
+      id: old.id,
+      backendId: old.backendId,
+      name: name ?? old.name,
+      phone: phone ?? old.phone,
+      email: email ?? old.email,
+      role: role ?? old.role,
+      store: old.store,
+      storeIds: old.storeIds,
+      status: status ?? old.status,
+      salary: salary ?? old.salary,
+      commission: commission ?? old.commission,
+      salesTarget: salesTarget ?? old.salesTarget,
       currentSales: old.currentSales,
-      joinDate:     old.joinDate,
-      permissions:  permissions  ?? old.permissions,
-      attendance:   old.attendance,
-      leaves:       old.leaves,
-      aadhaar:      aadhaar      ?? old.aadhaar,
-      pan:          pan          ?? old.pan,
+      joinDate: old.joinDate,
+      permissions: permissions ?? old.permissions,
+      attendance: old.attendance,
+      leaves: old.leaves,
+      aadhaar: aadhaar ?? old.aadhaar,
+      pan: pan ?? old.pan,
     );
     staffMembers.refresh();
   }
@@ -296,32 +443,49 @@ class StaffController extends GetxController {
   List<Staff> get filteredStaff {
     var list = staffMembers.toList();
     final f = activeFilter.value;
-    if (f == 'admin')    list = list.where((s) => s.role == 'admin').toList();
-    else if (f == 'staff')    list = list.where((s) => s.role == 'staff').toList();
-    else if (f == 'active')   list = list.where((s) => s.status == 'Active').toList();
-    else if (f == 'inactive') list = list.where((s) => s.status == 'Inactive').toList();
+    if (f == 'admin')
+      list = list.where((s) => s.role == 'admin').toList();
+    else if (f == 'staff')
+      list = list.where((s) => s.role == 'staff').toList();
+    else if (f == 'active')
+      list = list.where((s) => s.status == 'Active').toList();
+    else if (f == 'inactive')
+      list = list.where((s) => s.status == 'Inactive').toList();
     final q = searchQuery.value.toLowerCase().trim();
     if (q.isNotEmpty) {
-      list = list.where((s) =>
-        s.name.toLowerCase().contains(q) ||
-        s.phone.contains(q) ||
-        s.email.toLowerCase().contains(q),
-      ).toList();
+      list = list
+          .where(
+            (s) =>
+                s.name.toLowerCase().contains(q) ||
+                s.phone.contains(q) ||
+                s.email.toLowerCase().contains(q),
+          )
+          .toList();
     }
     return list;
   }
 
-  int get totalStaff  => staffMembers.length;
-  int get adminCount  => staffMembers.where((s) => s.role == 'admin').length;
-  int get staffCount  => staffMembers.where((s) => s.role == 'staff').length;
+  int get totalStaff => staffMembers.length;
+  int get adminCount => staffMembers.where((s) => s.role == 'admin').length;
+  int get staffCount => staffMembers.where((s) => s.role == 'staff').length;
   int get activeCount => staffMembers.where((s) => s.status == 'Active').length;
 
   /// Store overview cards — mirrors Electron's storeStaffCounts
   List<Map<String, dynamic>> get storeOverview => kStores.map((store) {
-    final short   = store.replaceAll('Rajmahal Jewellers - ', '');
-    final admins  = staffMembers.where((m) => m.store == store && m.role == 'admin').length;
-    final members = staffMembers.where((m) => m.store == store && m.role == 'staff').length;
-    return {'name': store, 'short': short, 'admin': admins, 'staff': members, 'total': admins + members};
+    final short = store.replaceAll('Rajmahal Jewellers - ', '');
+    final admins = staffMembers
+        .where((m) => m.store == store && m.role == 'admin')
+        .length;
+    final members = staffMembers
+        .where((m) => m.store == store && m.role == 'staff')
+        .length;
+    return {
+      'name': store,
+      'short': short,
+      'admin': admins,
+      'staff': members,
+      'total': admins + members,
+    };
   }).toList();
 
   // ════════════════════════════════════════════════════════════════
@@ -331,7 +495,7 @@ class StaffController extends GetxController {
   /// Format rupee amounts like Electron's formatCurrency (₹X.XL / ₹XK)
   String fmt(double v) {
     if (v >= 100000) return '₹${(v / 100000).toStringAsFixed(1)}L';
-    if (v >= 1000)   return '₹${(v / 1000).toStringAsFixed(0)}K';
+    if (v >= 1000) return '₹${(v / 1000).toStringAsFixed(0)}K';
     return '₹${v.toInt()}';
   }
 
@@ -342,8 +506,12 @@ class StaffController extends GetxController {
 
   double commissionEarned(Staff s) => s.currentSales * s.commission / 100;
 
-  String initials(String name) =>
-      name.trim().split(' ').map((n) => n.isNotEmpty ? n[0].toUpperCase() : '').take(2).join();
+  String initials(String name) => name
+      .trim()
+      .split(' ')
+      .map((n) => n.isNotEmpty ? n[0].toUpperCase() : '')
+      .take(2)
+      .join();
 
   /// Resolve store IDs for a given store name
   List<int> storeIdsFor(String storeName) {

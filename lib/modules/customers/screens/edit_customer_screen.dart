@@ -47,7 +47,7 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
     super.dispose();
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final updated = _customer.copyWith(
       name: _name.text.trim(), phone: _phone.text.trim(),
@@ -57,7 +57,27 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
       state: _state.text.trim(), pincode: _pincode.text.trim(),
       pan: _pan.text.trim(), aadhaar: _aadhaar.text.trim(), gstNumber: _gst.text.trim(),
     );
+
+    // Always update local state first
     _ctrl.updateCustomer(updated);
+
+    // mirrors Electron: try API update — PUT /api/customers/:id
+    if (_customer.backendId != null) {
+      final nameParts = updated.name.split(' ');
+      _ctrl.updateViaApi(_customer.backendId, {
+        'firstName':   nameParts[0],
+        'lastName':    nameParts.length > 1 ? nameParts.sublist(1).join(' ') : null,
+        'phone':       updated.phone.replaceAll(RegExp(r'[\s+\-]'), ''),
+        'email':       updated.email.isEmpty ? null : updated.email,
+        'addressLine1': updated.address.isEmpty ? null : updated.address,
+        'city':        updated.city.isEmpty ? null : updated.city,
+        'state':       updated.state.isEmpty ? null : updated.state,
+        'pincode':     updated.pincode.isEmpty ? null : updated.pincode,
+        'pan':         updated.pan.isEmpty ? null : updated.pan,
+        'gstin':       updated.gstNumber.isEmpty ? null : updated.gstNumber,
+      });
+    }
+
     Get.back();
     Get.snackbar('Updated', '"${updated.name}" saved!',
         backgroundColor: AppColors.bgCard, colorText: AppColors.textPrimary,

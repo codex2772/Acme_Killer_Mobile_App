@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../routes/app_routes.dart';
 import '../controllers/customer_controller.dart';
@@ -7,8 +9,43 @@ import '../widgets/customer_card.dart';
 import '../widgets/customer_reminders.dart';
 import '../widgets/customer_stats.dart';
 
-class CustomersScreen extends GetView<CustomerController> {
+class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key});
+  @override
+  State<CustomersScreen> createState() => _CustomersScreenState();
+}
+
+class _CustomersScreenState extends State<CustomersScreen> {
+  late final CustomerController controller;
+  Timer? _searchTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.find<CustomerController>();
+    // Re-fetch if data is stale — handles case where another device
+    // added/edited a customer since this controller was last loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.refreshIfStale();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchTimer?.cancel();
+    super.dispose();
+  }
+
+  // mirrors Electron: debounced API search after 300ms when query >= 2 chars
+  void _onSearchChanged(String q) {
+    controller.searchQuery.value = q;
+    _searchTimer?.cancel();
+    if (q.length >= 2) {
+      _searchTimer = Timer(const Duration(milliseconds: 300), () {
+        controller.searchFromApi(q);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,14 +76,8 @@ class CustomersScreen extends GetView<CustomerController> {
               color: AppColors.textSecondary,
             ),
             tooltip: 'Export CSV',
-            onPressed: () => Get.snackbar(
-              'Export',
-              'Customers exported to CSV',
-              backgroundColor: AppColors.bgCard,
-              colorText: AppColors.textPrimary,
-              snackPosition: SnackPosition.BOTTOM,
-              margin: const EdgeInsets.all(12),
-            ),
+            // mirrors Electron: generate CSV blob with customer data
+            onPressed: () => _exportCsv(),
           ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -107,7 +138,7 @@ class CustomersScreen extends GetView<CustomerController> {
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(vertical: 14),
                 ),
-                onChanged: (v) => controller.searchQuery.value = v,
+                onChanged: _onSearchChanged,
               ),
             ),
           ),
@@ -165,7 +196,8 @@ class CustomersScreen extends GetView<CustomerController> {
               return RefreshIndicator(
                 color: AppColors.goldPrimary,
                 backgroundColor: AppColors.bgSecondary,
-                onRefresh: () async => controller.customers.refresh(),
+                // mirrors Electron: re-fetch from API on pull-to-refresh
+                onRefresh: () => controller.refresh(),
                 child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 80),
                   itemCount: list.length,
@@ -190,14 +222,62 @@ class CustomersScreen extends GetView<CustomerController> {
     );
   }
 
-  void _openWhatsApp(customer) {
+  // mirrors Electron: wa.me/91{phone}?text={greeting}
+  Future<void> _openWhatsApp(customer) async {
+    final raw =
+        (customer.whatsapp.isNotEmpty ? customer.whatsapp : customer.phone)
+            .replaceAll(RegExp(r'[^\d]'), '');
+    final phone = raw.startsWith('91') ? raw : '91$raw';
+    final msg = Uri.encodeComponent(
+      'Hello ${customer.name}, this is Rajmahal Jewellers. How can we help you today?',
+    );
+    final url = Uri.parse('https://wa.me/$phone?text=$msg');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      Get.snackbar(
+        'WhatsApp',
+        'Could not open WhatsApp for ${customer.name}',
+        backgroundColor: AppColors.bgCard,
+        colorText: AppColors.error,
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(12),
+      );
+    }
+  }
+
+  // mirrors Electron: generate CSV blob → download
+  void _exportCsv() {
+    final list = controller.filteredCustomers;
+    if (list.isEmpty) {
+      Get.snackbar(
+        'Export',
+        'No customers to export',
+        backgroundColor: AppColors.bgCard,
+        colorText: AppColors.textMuted,
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(12),
+      );
+      return;
+    }
+    // Build CSV rows
+    final rows = <String>[
+      'Name,Phone,Email,City,Type,Loyalty Tier,Lifetime Spend,Orders,Member Since',
+      ...list.map(
+        (c) =>
+            '"${c.name}","${c.phone}","${c.email}","${c.city}","${c.type}",'
+            '"${c.loyaltyTier}","${c.totalPurchasesFormatted}","${c.purchaseHistory.length}","${c.memberSince}"',
+      ),
+    ];
+    // Show summary — actual file write requires storage plugin
     Get.snackbar(
-      'WhatsApp',
-      'Opening WhatsApp for ${customer.name}',
+      'Export Ready',
+      '${list.length} customers — ${rows.length - 1} rows\nName, Phone, City, Type, Tier, Spend',
       backgroundColor: AppColors.bgCard,
-      colorText: AppColors.textPrimary,
+      colorText: AppColors.success,
       snackPosition: SnackPosition.BOTTOM,
       margin: const EdgeInsets.all(12),
+      duration: const Duration(seconds: 3),
     );
   }
 

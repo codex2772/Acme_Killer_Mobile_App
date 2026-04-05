@@ -6,7 +6,6 @@ import '../../../routes/app_routes.dart';
 
 class RoleSelectScreen extends StatefulWidget {
   const RoleSelectScreen({super.key});
-
   @override
   State<RoleSelectScreen> createState() => _RoleSelectScreenState();
 }
@@ -57,14 +56,11 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    "Choose how you'd like to access JewelERP",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 14),
-                  ),
+                  const Text("Choose how you'd like to access JewelERP",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
                   const SizedBox(height: 36),
 
-                  // Owner card
                   _RoleCard(
                     title: 'Owner',
                     description: 'Full access to all stores, staff management, revenue & analytics',
@@ -75,13 +71,14 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
                   ),
                   const SizedBox(height: 16),
 
-                  // Staff card
+                  // mirrors Electron: Staff card shows badge-admin + badge-staff
                   _RoleCard(
                     title: 'Staff',
-                    description: 'Billing, inventory & customer management for daily operations',
+                    description: 'Store-level access for daily operations — billing, inventory & customer management',
                     icon: Icons.badge_rounded,
                     color: AppColors.info,
                     features: const ['Billing', 'Inventory', 'Customers'],
+                    subBadges: const ['Admin', 'Staff'],
                     onTap: () => Get.toNamed(AppRoutes.login, arguments: 'staff'),
                   ),
 
@@ -104,10 +101,15 @@ class _RoleCard extends StatefulWidget {
   final IconData icon;
   final Color color;
   final List<String> features;
+  final List<String> subBadges;
   final VoidCallback onTap;
-  const _RoleCard({required this.title, required this.description,
-      required this.icon, required this.color,
-      required this.features, required this.onTap});
+
+  const _RoleCard({
+    required this.title, required this.description,
+    required this.icon, required this.color,
+    required this.features, this.subBadges = const [],
+    required this.onTap,
+  });
 
   @override
   State<_RoleCard> createState() => _RoleCardState();
@@ -136,73 +138,73 @@ class _RoleCardState extends State<_RoleCard> {
               color: _pressed ? widget.color.withOpacity(0.6) : AppColors.border,
               width: _pressed ? 1.5 : 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: widget.color.withOpacity(_pressed ? 0.22 : 0.1),
-                blurRadius: _pressed ? 28 : 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            boxShadow: [BoxShadow(
+              color: widget.color.withOpacity(_pressed ? 0.22 : 0.1),
+              blurRadius: _pressed ? 28 : 16, offset: const Offset(0, 4))],
           ),
-          child: Column(
-            children: [
-              Container(
-                height: 70, width: 70,
+          child: Column(children: [
+            Container(
+              height: 70, width: 70,
+              decoration: BoxDecoration(
+                color: widget.color.withOpacity(0.15), shape: BoxShape.circle,
+                border: Border.all(color: widget.color.withOpacity(0.3), width: 1.5)),
+              child: Icon(widget.icon, color: widget.color, size: 32)),
+            const SizedBox(height: 14),
+            Text(widget.title, style: const TextStyle(
+                color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(widget.description, textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5)),
+            const SizedBox(height: 16),
+
+            // Feature chips
+            Wrap(
+              spacing: 8, runSpacing: 8, alignment: WrapAlignment.center,
+              children: widget.features.map((f) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                 decoration: BoxDecoration(
-                  color: widget.color.withOpacity(0.15),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: widget.color.withOpacity(0.3), width: 1.5),
-                ),
-                child: Icon(widget.icon, color: widget.color, size: 32),
-              ),
-              const SizedBox(height: 14),
-              Text(widget.title,
-                  style: const TextStyle(
-                      color: AppColors.textPrimary, fontSize: 22,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(widget.description,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5)),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8, runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: widget.features.map((f) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: widget.color.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: widget.color.withOpacity(0.25)),
-                      ),
-                      child: Text(f,
-                          style: TextStyle(
-                              fontSize: 11, color: widget.color.withOpacity(0.9),
-                              fontWeight: FontWeight.w500)),
-                    )).toList(),
-              ),
-              const SizedBox(height: 18),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                decoration: BoxDecoration(
-                  color: widget.color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: widget.color.withOpacity(0.35)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('Login as ${widget.title}',
-                        style: TextStyle(
-                            color: widget.color, fontWeight: FontWeight.w600, fontSize: 14)),
-                    const SizedBox(width: 6),
-                    Icon(Icons.arrow_forward_ios_rounded, size: 13, color: widget.color),
-                  ],
-                ),
-              ),
+                  color: widget.color.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: widget.color.withOpacity(0.25))),
+                child: Text(f, style: TextStyle(fontSize: 11,
+                    color: widget.color.withOpacity(0.9), fontWeight: FontWeight.w500)),
+              )).toList()),
+
+            // ── Admin + Staff sub-badges — mirrors Electron badge-admin + badge-staff ──
+            if (widget.subBadges.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: widget.subBadges.map((badge) {
+                  final badgeColor = badge == 'Admin'
+                      ? const Color(0xFFF472B6) : AppColors.info;
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: badgeColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: badgeColor.withOpacity(0.4))),
+                    child: Text(badge, style: TextStyle(
+                        color: badgeColor, fontSize: 11, fontWeight: FontWeight.w600)));
+                }).toList()),
             ],
-          ),
+
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              decoration: BoxDecoration(
+                color: widget.color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: widget.color.withOpacity(0.35))),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text('Login as ${widget.title}',
+                    style: TextStyle(color: widget.color, fontWeight: FontWeight.w600, fontSize: 14)),
+                const SizedBox(width: 6),
+                Icon(Icons.arrow_forward_ios_rounded, size: 13, color: widget.color),
+              ])),
+          ]),
         ),
       ),
     );

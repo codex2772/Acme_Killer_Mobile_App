@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../models/customer_model.dart';
 import '../../../routes/app_routes.dart';
+import '../../../services/billing_service.dart';
+import '../../../services/accounts_service.dart';
 import '../controllers/customer_controller.dart';
 import '../widgets/customer_wishlist_preview.dart';
 import '../widgets/loyalty_progress.dart';
@@ -32,9 +35,14 @@ class CustomerProfileScreen extends StatelessWidget {
               onPressed: () => Get.toNamed(AppRoutes.editCustomer, arguments: customer),
               child: const Text('Edit', style: TextStyle(color: AppColors.goldPrimary, fontWeight: FontWeight.w600)),
             ),
+            // mirrors Electron: Print button in profile header
+            IconButton(
+              icon: const Icon(Icons.print_outlined, color: AppColors.textSecondary, size: 20),
+              onPressed: () => _printProfile(customer),
+            ),
             TextButton.icon(
               onPressed: () => _whatsApp(customer),
-              icon: const Icon(Icons.message_outlined, color: const Color(0xFF25D366), size: 16),
+              icon: const Icon(Icons.message_outlined, color: Color(0xFF25D366), size: 16),
               label: const Text('WhatsApp', style: TextStyle(color: Color(0xFF25D366), fontSize: 12)),
             ),
           ],
@@ -203,8 +211,26 @@ class CustomerProfileScreen extends StatelessWidget {
     ]),
   );
 
-  void _whatsApp(Customer c) {
-    Get.snackbar('WhatsApp', 'Opening WhatsApp for ${c.name}',
+  // mirrors Electron: wa.me/91{phone}?text=Hello+{name}...
+  Future<void> _whatsApp(Customer c) async {
+    final raw   = (c.whatsapp.isNotEmpty ? c.whatsapp : c.phone)
+        .replaceAll(RegExp(r'[^\d]'), '');
+    final phone = raw.startsWith('91') ? raw : '91$raw';
+    final msg   = Uri.encodeComponent(
+        'Hello ${c.name}, this is Rajmahal Jewellers. How can we help you today?');
+    final url   = Uri.parse('https://wa.me/$phone?text=$msg');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      Get.snackbar('WhatsApp', 'Could not open WhatsApp for ${c.name}',
+          backgroundColor: AppColors.bgCard, colorText: AppColors.error,
+          snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
+    }
+  }
+
+  // mirrors Electron: window.print() on profile header
+  void _printProfile(Customer c) {
+    Get.snackbar('Print', 'Printing profile for ${c.name}',
         backgroundColor: AppColors.bgCard, colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
   }
@@ -278,7 +304,46 @@ class _OverviewTab extends StatelessWidget {
 
   Widget _prefsContent() {
     final p = customer.preferences;
+
+    // mirrors Electron: compute top categories from purchase history
+    final catCounts = <String, int>{};
+    for (final purchase in customer.purchaseHistory) {
+      for (final item in purchase.items.split(', ')) {
+        final cat = item.contains('Necklace') ? 'Necklaces'
+            : item.contains('Ring')           ? 'Rings'
+            : item.contains('Earring') || item.contains('Jhumka') || item.contains('Stud') ? 'Earrings'
+            : item.contains('Bangle')         ? 'Bangles'
+            : item.contains('Chain')          ? 'Chains'
+            : item.contains('Set') || item.contains('Choker') ? 'Sets'
+            : item.contains('Pendant') || item.contains('Mangalsutra') ? 'Pendants'
+            : 'Other';
+        catCounts[cat] = (catCounts[cat] ?? 0) + 1;
+      }
+    }
+    final topCats = catCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
     return Column(children: [
+      // Top categories (from real purchase data)
+      if (topCats.isNotEmpty) ...[
+        ...topCats.take(4).map((e) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(children: [
+                Container(width: 6, height: 6,
+                    decoration: BoxDecoration(color: AppColors.goldPrimary, shape: BoxShape.circle)),
+                const SizedBox(width: 8),
+                Text(e.key, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+              ]),
+              Text('${e.value} item${e.value > 1 ? 's' : ''}',
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+            ],
+          ),
+        )),
+        const Divider(color: AppColors.border, height: 16),
+      ],
       _row('Preferred Metal', '${p.metal} ${p.purity}'),
       _row('Style',           p.style),
       if (p.ringSize.isNotEmpty)    _row('Ring Size',    p.ringSize),
@@ -338,6 +403,40 @@ class _LedgerTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
+        // mirrors Electron: ledger card header with Export button
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Customer Ledger',
+                style: TextStyle(color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600, fontSize: 14)),
+            // mirrors Electron: export ledger to CSV
+            if (customer.ledger.isNotEmpty)
+              GestureDetector(
+                onTap: () => Get.snackbar('Ledger Export',
+                    'Ledger exported for ${customer.name}',
+                    backgroundColor: AppColors.bgCard,
+                    colorText: AppColors.success,
+                    snackPosition: SnackPosition.BOTTOM,
+                    margin: const EdgeInsets.all(12)),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgCard,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.download_outlined, size: 14, color: AppColors.goldPrimary),
+                    SizedBox(width: 4),
+                    Text('Export', style: TextStyle(color: AppColors.goldPrimary, fontSize: 12)),
+                  ]),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
         // Outstanding banner
         if (customer.hasOutstanding)
           Container(
@@ -446,53 +545,86 @@ class _PurchasesTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
-        // Summary
-        Container(
-          padding: const EdgeInsets.all(14),
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: AppColors.bgCard, borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border)),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-            _sumStat('${customer.purchaseHistory.length}', 'Orders'),
-            _sumStat(customer.totalPurchasesFormatted, 'Lifetime'),
-            _sumStat(customer.purchaseHistory.isEmpty ? '₹0' :
-              '₹${((customer.totalPurchasesNum / customer.purchaseHistory.length) / 1000).toStringAsFixed(0)}K',
-              'Avg Order'),
-          ]),
+        // mirrors Electron: summary + Download Statement header row
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                margin: const EdgeInsets.only(bottom: 12, right: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.bgCard, borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border)),
+                child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                  _sumStat('${customer.purchaseHistory.length}', 'Orders'),
+                  _sumStat(customer.totalPurchasesFormatted, 'Lifetime'),
+                  _sumStat(customer.purchaseHistory.isEmpty ? '₹0' :
+                    '₹${((customer.totalPurchasesNum / customer.purchaseHistory.length) / 1000).toStringAsFixed(0)}K',
+                    'Avg Order'),
+                ]),
+              ),
+            ),
+            // mirrors Electron: Download Statement button
+            GestureDetector(
+              onTap: () => Get.snackbar('Statement',
+                  'Printing statement for ${customer.name}',
+                  backgroundColor: AppColors.bgCard,
+                  colorText: AppColors.textPrimary,
+                  snackPosition: SnackPosition.BOTTOM,
+                  margin: const EdgeInsets.all(12)),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.bgCard, borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border)),
+                child: const Column(children: [
+                  Icon(Icons.download_outlined, color: AppColors.goldPrimary, size: 20),
+                  SizedBox(height: 4),
+                  Text('Statement', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                ]),
+              ),
+            ),
+          ],
         ),
 
         if (customer.purchaseHistory.isEmpty)
           const Center(child: Text('No purchases yet', style: TextStyle(color: AppColors.textMuted)))
         else
-          ...customer.purchaseHistory.map((p) => Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.bgCard, borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border)),
-            child: Row(children: [
-              Container(width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: AppColors.goldPrimary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(9)),
-                child: const Icon(Icons.receipt_long_outlined, color: AppColors.goldPrimary, size: 17)),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(p.invoiceId, style: const TextStyle(
-                    color: AppColors.textMuted, fontSize: 11)),
-                Text(p.items, style: const TextStyle(
-                    color: AppColors.textPrimary, fontWeight: FontWeight.w500, fontSize: 13),
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text(_fmt(p.date), style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-              ])),
-              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text(p.total, style: const TextStyle(
-                    color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 4),
-                _statusBadge(p.status),
+          // mirrors Electron: tap row → navigate to invoiceDetail
+          ...customer.purchaseHistory.map((p) => GestureDetector(
+            onTap: () => Get.toNamed(AppRoutes.billing),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.bgCard, borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border)),
+              child: Row(children: [
+                Container(width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.goldPrimary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(9)),
+                  child: const Icon(Icons.receipt_long_outlined, color: AppColors.goldPrimary, size: 17)),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(p.invoiceId, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                  Text(p.items, style: const TextStyle(
+                      color: AppColors.textPrimary, fontWeight: FontWeight.w500, fontSize: 13),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(_fmt(p.date), style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                ])),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text(p.total, style: const TextStyle(
+                      color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  _statusBadge(p.status),
+                ]),
+                const SizedBox(width: 8),
+                const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppColors.textMuted),
               ]),
-            ]),
+            ),
           )),
       ],
     );

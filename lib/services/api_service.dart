@@ -18,7 +18,7 @@ import 'storage_service.dart';
 
 // ── Change to your actual backend URL ──
 const String kApiBaseUrl =
-    'http://jewel-erp-alb-1837400403.ap-south-1.elb.amazonaws.com';
+    'http://jewel-erp-alb-2124014483.ap-south-1.elb.amazonaws.com';
 
 // ── Result type — mirrors Electron's { success, data, error, status } ──
 class ApiResult<T> {

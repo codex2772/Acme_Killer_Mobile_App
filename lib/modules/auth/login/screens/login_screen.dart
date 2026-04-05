@@ -161,7 +161,9 @@ class LoginScreen extends GetView<LoginController> {
                           ),
                         )),
 
-                    // ── Error box ──
+                    // ── Error box — mirrors Electron:
+                    // wrong password → red error (result.error)
+                    // offline/demo  → gold info snackbar (handled in controller)
                     Obx(() => controller.errorMessage.value.isEmpty
                         ? const SizedBox(height: 8)
                         : Container(
@@ -257,9 +259,11 @@ class LoginScreen extends GetView<LoginController> {
                     ),
 
                     const SizedBox(height: 22),
+                    // mirrors Electron: no "contact support" link — removed
                     const Center(
-                      child: Text('Need help? Contact support',
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                      child: Text('Backend unreachable? App works in demo mode.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                     ),
                   ],
                 ),

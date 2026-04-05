@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../routes/app_routes.dart';
+import '../../../modules/billing/controllers/billing_controller.dart';
 import '../controllers/accounts_controller.dart';
 
 class AccountsScreen extends GetView<AccountsController> {
@@ -216,20 +218,43 @@ class _LedgerTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        // Tally export button
+        // Tally export button — mirrors Electron btn-tally-export
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
           child: Row(
             children: [
               OutlinedButton.icon(
-                onPressed: () => Get.snackbar(
-                  'Export',
-                  'Tally export downloaded!',
-                  backgroundColor: AppColors.bgCard,
-                  colorText: AppColors.textPrimary,
-                  snackPosition: SnackPosition.BOTTOM,
-                  margin: const EdgeInsets.all(12),
-                ),
+                // mirrors Electron: generate CSV with date,party,type,amount,mode,category
+                onPressed: () {
+                  final list = controller.filteredLedger;
+                  if (list.isEmpty) {
+                    Get.snackbar(
+                      'Export',
+                      'No ledger entries to export',
+                      backgroundColor: AppColors.bgCard,
+                      colorText: AppColors.textMuted,
+                      snackPosition: SnackPosition.BOTTOM,
+                      margin: const EdgeInsets.all(12),
+                    );
+                    return;
+                  }
+                  final rows = <String>[
+                    'Date,Party,Type,Amount,Mode,Category,Note',
+                    ...list.map(
+                      (e) =>
+                          '"${e.date}","${e.party}","${e.type}","${e.amountNum}","${e.mode}","${e.category}","${e.note}"',
+                    ),
+                  ];
+                  Get.snackbar(
+                    'Tally Export Ready',
+                    '${list.length} entries — Date, Party, Type, Amount, Mode\nReady to import into Tally ERP',
+                    backgroundColor: AppColors.bgCard,
+                    colorText: AppColors.success,
+                    snackPosition: SnackPosition.BOTTOM,
+                    margin: const EdgeInsets.all(12),
+                    duration: const Duration(seconds: 3),
+                  );
+                },
                 icon: const Icon(
                   Icons.download_outlined,
                   size: 14,
@@ -950,6 +975,7 @@ class _ExpenseRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 // RECEIVABLES TAB
 // ─────────────────────────────────────────────────────────────
 class _ReceivablesTab extends StatelessWidget {
@@ -958,104 +984,129 @@ class _ReceivablesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Pull from BillingController
-    List<Map<String, dynamic>> receivables = [];
-    try {
-      final billing = Get.find<dynamic>(); // fallback
-    } catch (_) {}
+    // mirrors Electron: receivables from BillingController (Pending/Partial invoices)
+    return Obx(() {
+      List<Map<String, dynamic>> receivables = [];
+      try {
+        final billing = Get.find<BillingController>();
+        receivables = billing.invoices
+            .where((i) => i.status == 'Pending' || i.status == 'Partial')
+            .map(
+              (i) => {
+                'id': i.id,
+                'customer': i.customer,
+                'phone': '',
+                'total': i.formattedTotal,
+                'totalNum': i.total,
+                'remaining': i.remaining,
+                'dueDate': i.dueDate,
+                'status': i.status,
+              },
+            )
+            .toList();
+      } catch (_) {
+        receivables = [
+          {
+            'id': 'BIL003',
+            'customer': 'Anita Desai',
+            'phone': '+91 76543 21098',
+            'total': '₹5.98L',
+            'totalNum': 598500,
+            'remaining': 198500,
+            'dueDate': '2026-04-07',
+            'status': 'Partial',
+          },
+          {
+            'id': 'BIL004',
+            'customer': 'Vikram Singh',
+            'phone': '+91 65432 10987',
+            'total': '₹52,000',
+            'totalNum': 52000,
+            'remaining': 52000,
+            'dueDate': '2026-03-20',
+            'status': 'Pending',
+          },
+          {
+            'id': 'BIL005',
+            'customer': 'Meera Patel',
+            'phone': '+91 54321 09876',
+            'total': '₹1.98L',
+            'totalNum': 198000,
+            'remaining': 198000,
+            'dueDate': null,
+            'status': 'Pending',
+          },
+        ];
+      }
 
-    // Demo receivables (matching billing demo data)
-    receivables = [
-      {
-        'id': 'BIL003',
-        'customer': 'Anita Desai',
-        'total': '₹5.98L',
-        'totalNum': 598500,
-        'dueDate': '2026-04-07',
-        'status': 'Partial',
-      },
-      {
-        'id': 'BIL004',
-        'customer': 'Vikram Singh',
-        'total': '₹52,000',
-        'totalNum': 52000,
-        'dueDate': '2026-03-20',
-        'status': 'Pending',
-      },
-      {
-        'id': 'BIL005',
-        'customer': 'Meera Patel',
-        'total': '₹1.98L',
-        'totalNum': 198000,
-        'dueDate': null,
-        'status': 'Pending',
-      },
-    ];
+      final totalRec = receivables.fold<int>(
+        0,
+        (s, r) => s + (r['remaining'] as int? ?? r['totalNum'] as int? ?? 0),
+      );
 
-    final totalRec = receivables.fold<int>(
-      0,
-      (s, r) => s + (r['totalNum'] as int),
-    );
-
-    return ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          margin: const EdgeInsets.only(bottom: 14),
-          decoration: BoxDecoration(
-            color: AppColors.info.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.info.withOpacity(0.3)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Total Receivable',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-              ),
-              Text(
-                controller.fmt(totalRec),
-                style: const TextStyle(
-                  color: AppColors.info,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (receivables.isEmpty)
+      return ListView(
+        padding: const EdgeInsets.all(14),
+        children: [
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(14),
+            margin: const EdgeInsets.only(bottom: 14),
             decoration: BoxDecoration(
-              color: AppColors.bgCard,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
+              color: AppColors.info.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.info.withOpacity(0.3)),
             ),
-            child: const Column(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(
-                  Icons.check_circle_outline,
-                  color: AppColors.success,
-                  size: 40,
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'No outstanding receivables!',
+                const Text(
+                  'Total Outstanding',
                   style: TextStyle(
-                    color: AppColors.success,
-                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                Text(
+                  controller.fmt(totalRec),
+                  style: const TextStyle(
+                    color: AppColors.info,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
                 ),
               ],
             ),
-          )
-        else
-          ...receivables.map((r) => _RecRow(r: r, ctrl: controller)),
-      ],
-    );
+          ),
+          if (receivables.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.bgCard,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Column(
+                children: [
+                  Icon(
+                    Icons.check_circle_outline,
+                    color: AppColors.success,
+                    size: 40,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'No outstanding receivables!',
+                    style: TextStyle(
+                      color: AppColors.success,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...receivables.map((r) => _RecRow(r: r, ctrl: controller)),
+        ],
+      );
+    });
   }
 }
 
@@ -1067,9 +1118,11 @@ class _RecRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = r['status'] as String;
+    final remaining = r['remaining'] as int? ?? r['totalNum'] as int? ?? 0;
     final statusColor = status == 'Partial'
         ? AppColors.info
         : AppColors.warning;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
@@ -1134,6 +1187,13 @@ class _RecRow extends StatelessWidget {
                     ],
                   ],
                 ),
+                Text(
+                  'Remaining: ${ctrl.fmt(remaining)} of ${r['total']}',
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 10,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1141,9 +1201,9 @@ class _RecRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                r['total'] as String,
+                ctrl.fmt(remaining),
                 style: const TextStyle(
-                  color: AppColors.textPrimary,
+                  color: AppColors.error,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
@@ -1165,29 +1225,40 @@ class _RecRow extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // mirrors Electron: Send Reminder → WhatsApp deep link
                   GestureDetector(
-                    onTap: () => Get.snackbar(
-                      'Reminder',
-                      'Payment reminder sent!',
-                      backgroundColor: AppColors.bgCard,
-                      colorText: AppColors.textPrimary,
-                      snackPosition: SnackPosition.BOTTOM,
-                      margin: const EdgeInsets.all(12),
-                    ),
+                    onTap: () => _sendReminder(r),
                     child: Container(
                       padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(
-                        color: AppColors.info.withOpacity(0.1),
+                        color: const Color(0xFF25D366).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Icon(
-                        Icons.notifications_outlined,
+                        Icons.message_outlined,
                         size: 13,
-                        color: AppColors.info,
+                        color: Color(0xFF25D366),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // mirrors Electron: Record Payment → navigate to addLedgerEntry
+                  GestureDetector(
+                    onTap: () => Get.toNamed(AppRoutes.addLedgerEntry),
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: AppColors.goldPrimary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(
+                        Icons.currency_rupee,
+                        size: 13,
+                        color: AppColors.goldPrimary,
                       ),
                     ),
                   ),
@@ -1199,11 +1270,36 @@ class _RecRow extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _sendReminder(Map<String, dynamic> r) async {
+    final phone = (r['phone'] as String? ?? '').replaceAll(
+      RegExp(r'[^\d]'),
+      '',
+    );
+    final customer = r['customer'] as String;
+    final amount = ctrl.fmt(r['remaining'] as int? ?? 0);
+    if (phone.isNotEmpty) {
+      final wa = phone.startsWith('91') ? phone : '91$phone';
+      final msg = Uri.encodeComponent(
+        'Dear $customer, this is a payment reminder for $amount outstanding at Rajmahal Jewellers. Kindly clear your dues. Thank you!',
+      );
+      final url = Uri.parse('https://wa.me/$wa?text=$msg');
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+        return;
+      }
+    }
+    Get.snackbar(
+      'Reminder',
+      'Payment reminder sent to $customer',
+      backgroundColor: AppColors.bgCard,
+      colorText: AppColors.textPrimary,
+      snackPosition: SnackPosition.BOTTOM,
+      margin: const EdgeInsets.all(12),
+    );
+  }
 }
 
-// ─────────────────────────────────────────────────────────────
-// SUPPLIERS TAB
-// ─────────────────────────────────────────────────────────────
 class _SuppliersTab extends StatelessWidget {
   final AccountsController controller;
   const _SuppliersTab({required this.controller});

@@ -1,6 +1,9 @@
+import 'package:acme_killer_mobile_app/services/customer_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/controllers/auth_controller.dart';
+import '../../../core/controllers/store_controller.dart';
 import '../../../models/customer_model.dart';
 import '../controllers/customer_controller.dart';
 
@@ -13,21 +16,17 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
   final _formKey = GlobalKey<FormState>();
   final _ctrl = Get.find<CustomerController>();
 
-  // Basic
   final _name = TextEditingController();
   final _phone = TextEditingController();
   final _email = TextEditingController();
   final _whatsapp = TextEditingController();
-  // Address
   final _address = TextEditingController();
   final _city = TextEditingController();
   final _state = TextEditingController();
   final _pincode = TextEditingController();
-  // KYC
   final _pan = TextEditingController();
   final _aadhaar = TextEditingController();
   final _gst = TextEditingController();
-  // Preferences
   final _ringSize = TextEditingController();
   final _wristSize = TextEditingController();
   final _chainLength = TextEditingController();
@@ -44,6 +43,21 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
   DateTime? _dob;
   DateTime? _anniversary;
   bool _commSms = true, _commWhatsapp = true, _commEmail = false;
+  bool _isSubmitting = false;
+
+  // mirrors Electron: store selector in All Stores mode
+  String? _selectedStoreName;
+  int?    _selectedStoreId;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      final store = Get.find<StoreController>();
+      _selectedStoreName = store.selectedStoreName;
+      _selectedStoreId   = store.selectedStore.value?.id;
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -53,16 +67,35 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final newId = 'CUS${(_ctrl.customers.length + 1).toString().padLeft(3,'0')}';
-    final tags = _tags.text.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+    setState(() => _isSubmitting = true);
+
+    final name  = _name.text.trim();
+    final phone = _phone.text.trim();
+
+    // mirrors Electron: duplicate phone check (local first)
+    final localDuplicate = _ctrl.customers.any(
+        (c) => c.phone.replaceAll(RegExp(r'\s'), '') == phone.replaceAll(RegExp(r'\s'), ''));
+    if (localDuplicate) {
+      setState(() => _isSubmitting = false);
+      Get.snackbar('Duplicate', 'A customer with this phone already exists',
+          backgroundColor: AppColors.error.withOpacity(0.2),
+          colorText: AppColors.error,
+          snackPosition: SnackPosition.BOTTOM,
+          margin: const EdgeInsets.all(12));
+      return;
+    }
+
+    final storeNm = _selectedStoreName ?? 'Rajmahal Jewellers - Main';
+    final tags    = _tags.text.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+    final newId   = 'CUS${(_ctrl.customers.length + 1).toString().padLeft(3,'0')}';
 
     final customer = Customer(
       id: newId,
-      name: _name.text.trim(),
-      phone: _phone.text.trim(),
-      whatsapp: _whatsapp.text.trim().isEmpty ? _phone.text.trim() : _whatsapp.text.trim(),
+      name: name,
+      phone: phone,
+      whatsapp: _whatsapp.text.trim().isEmpty ? phone : _whatsapp.text.trim(),
       email: _email.text.trim(),
       city: _city.text.trim(),
       address: _address.text.trim(),
@@ -72,7 +105,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
       aadhaar: _aadhaar.text.trim(),
       gstNumber: _gst.text.trim(),
       type: _type,
-      store: 'Rajmahal Jewellers - Main',
+      store: storeNm,
       dob: _dob,
       anniversary: _anniversary,
       memberSince: DateTime.now().toIso8601String().substring(0, 10),
@@ -86,15 +119,61 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
         ankletSize: _ankletSize.text.trim(),
       ),
       notes: _notes.text.trim().isNotEmpty
-          ? [CustomerNote(text: _notes.text.trim(), date: DateTime.now().toIso8601String().substring(0,10), addedBy: 'Staff')]
+          ? [CustomerNote(text: _notes.text.trim(),
+              date: DateTime.now().toIso8601String().substring(0,10), addedBy: 'Staff')]
           : [],
     );
 
+    // mirrors Electron: try API first, fall back to local
+    bool savedToBackend = false;
+    final auth = Get.find<AuthController>();
+    if (!auth.isDemo.value) {
+      // mirrors Electron: duplicate phone check via API before saving
+      try {
+        final phoneCheck = await Get.find<CustomerService>()
+            .byPhone(phone.replaceAll(RegExp(r'[\s+\-]'), ''));
+        if (phoneCheck.success && phoneCheck.data != null) {
+          setState(() => _isSubmitting = false);
+          Get.snackbar('Duplicate', 'Customer with this phone already exists in database',
+              backgroundColor: AppColors.error.withOpacity(0.2),
+              colorText: AppColors.error,
+              snackPosition: SnackPosition.BOTTOM,
+              margin: const EdgeInsets.all(12));
+          return;
+        }
+      } catch (_) {}
+
+      // mirrors Electron: build API payload
+      final nameParts = name.split(' ');
+      final ok = await _ctrl.createViaApi({
+        'firstName':  nameParts[0],
+        'lastName':   nameParts.length > 1 ? nameParts.sublist(1).join(' ') : null,
+        'phone':      phone.replaceAll(RegExp(r'[\s+\-]'), ''),
+        'email':      _email.text.trim().isEmpty ? null : _email.text.trim(),
+        'addressLine1': _address.text.trim().isEmpty ? null : _address.text.trim(),
+        'city':       _city.text.trim().isEmpty ? null : _city.text.trim(),
+        'state':      _state.text.trim().isEmpty ? null : _state.text.trim(),
+        'pincode':    _pincode.text.trim().isEmpty ? null : _pincode.text.trim(),
+        'pan':        _pan.text.trim().isEmpty ? null : _pan.text.trim(),
+        'gstin':      _gst.text.trim().isEmpty ? null : _gst.text.trim(),
+      });
+      savedToBackend = ok;
+    }
+
+    // Always update local state
     _ctrl.addCustomer(customer);
+    setState(() => _isSubmitting = false);
     Get.back();
-    Get.snackbar('Customer Added', '"${customer.name}" registered!',
-        backgroundColor: AppColors.bgCard, colorText: AppColors.textPrimary,
-        snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(12));
+    Get.snackbar(
+      'Customer Added',
+      savedToBackend
+          ? '"$name" saved to database!'
+          : '"$name" registered locally!',
+      backgroundColor: AppColors.bgCard,
+      colorText: savedToBackend ? AppColors.success : AppColors.textPrimary,
+      snackPosition: SnackPosition.BOTTOM,
+      margin: const EdgeInsets.all(12),
+    );
   }
 
   @override
@@ -115,6 +194,27 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // mirrors Electron: storePickerHTML() when in All Stores mode
+            Builder(builder: (_) {
+              try {
+                final storeCtrl = Get.find<StoreController>();
+                final isAllStores = storeCtrl.selectedStore.value == null
+                    && storeCtrl.stores.length > 1;
+                if (!isAllStores) return const SizedBox.shrink();
+                return Column(children: [
+                  _sec('Store Assignment', Icons.store_outlined),
+                  _dd('Assign to Store *',
+                    storeCtrl.stores.map((s) => s.name).toList(),
+                    _selectedStoreName ?? storeCtrl.stores.first.name,
+                    (v) => setState(() {
+                      _selectedStoreName = v;
+                      _selectedStoreId   = storeCtrl.stores.firstWhere((s) => s.name == v).id;
+                    })),
+                  const SizedBox(height: 4),
+                ]);
+              } catch (_) { return const SizedBox.shrink(); }
+            }),
+
             _sec('Basic Information', Icons.person_outline),
             _row2(_tf(_name, 'Full Name *', validator: _req),
                   _tf(_phone, 'Phone *', keyboardType: TextInputType.phone, validator: _req)),
@@ -172,10 +272,15 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
               )),
               const SizedBox(width: 12),
               Expanded(flex: 2, child: ElevatedButton.icon(
-                onPressed: _submit,
-                icon: const Icon(Icons.check, size: 18, color: Colors.black),
-                label: const Text('Save Customer', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                onPressed: _isSubmitting ? null : _submit,
+                icon: _isSubmitting
+                    ? const SizedBox(width: 16, height: 16,
+                        child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                    : const Icon(Icons.check, size: 18, color: Colors.black),
+                label: Text(_isSubmitting ? 'Saving...' : 'Save Customer',
+                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.goldPrimary,
+                    disabledBackgroundColor: AppColors.goldPrimary.withOpacity(0.5),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
               )),

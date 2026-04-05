@@ -35,7 +35,7 @@ const Map<String, String?> kModulePerms = {
   'dashboard':  null,
 };
 
-// ── Backend URL ───────────────────────────────────────────────────────────────
+// ── Backend URL — MUST match Electron api.js BASE_URL exactly ─────────────
 const String kApiBaseUrl =
     'http://jewel-erp-alb-2124014483.ap-south-1.elb.amazonaws.com';
 
@@ -49,37 +49,73 @@ class AuthService extends GetxService {
   String? _refreshToken;
 
   String? get accessToken => _accessToken;
+  String? get refreshToken => _refreshToken;
   void updateAccessToken(String token) => _accessToken = token;
 
   // ── LOGIN ─────────────────────────────────────────────────────────────────
+  // Mirrors Electron api.js login() exactly:
+  //   1. POST /api/auth/login
+  //   2. Extract token from response (handles wrapped { data: { token } })
+  //   3. Store tokens in memory + persist refresh token
+  //   4. Return user data (stores, permissions, role)
+  //   5. On HTTP error → return the backend error message (NOT demo fallback)
+  //   6. On network error (no connection) → fallback to demo mode
   Future<AuthResult> login(String mobile, String password) async {
     try {
       final response = await http.post(
         Uri.parse('$kApiBaseUrl/api/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'mobile': mobile, 'password': password}),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 15));
+
       if (response.statusCode == 200) {
-        return _handleLoginResponse(jsonDecode(response.body) as Map<String, dynamic>, mobile);
+        return _handleLoginResponse(
+          jsonDecode(response.body) as Map<String, dynamic>,
+          mobile,
+        );
       }
+
+      // ── Non-200 from backend — return the actual error ──
+      // Mirrors Electron: returns { success: false, error: errorMsg }
+      // NEVER fall back to demo on auth failure (wrong password, etc.)
+      String errorMsg = 'Login failed (${response.statusCode})';
+      try {
+        final errBody = jsonDecode(response.body) as Map<String, dynamic>;
+        errorMsg = errBody['message']?.toString() ??
+            errBody['error']?.toString() ??
+            errorMsg;
+      } catch (_) {}
+      return AuthResult.fail(errorMsg);
+    } catch (e) {
+      // ── Network error (timeout, DNS, no internet) → demo mode ──
+      // Mirrors Electron: when net.isOnline() is false
       return _demoLogin(mobile, password);
-    } catch (_) { return _demoLogin(mobile, password); }
+    }
   }
 
   AuthResult _handleLoginResponse(Map<String, dynamic> data, String mobile) {
+    // Mirrors Electron api.js login():
+    //   const tokenSource = result.data.data && result.data.data.token
+    //     ? result.data.data : result.data;
     final src = (data['data'] is Map && (data['data'] as Map)['token'] != null)
         ? data['data'] as Map<String, dynamic> : data;
 
+    // Handle various token key names from backend
+    // mirrors: at = tokenSource.token || tokenSource.accessToken || ...
     final at = src['token'] ?? src['accessToken'] ?? src['access_token'] ?? src['jwt'];
     final rt = src['refreshToken'] ?? src['refresh_token'];
-    if (at == null) return _demoLogin(mobile, '');
+
+    if (at == null) {
+      // Mirrors Electron: '[Auth] WARNING: No access token in response!'
+      return AuthResult.fail('Login succeeded but no access token received');
+    }
 
     _accessToken  = at.toString();
     _refreshToken = rt?.toString();
 
     final role = (src['role'] ?? 'staff').toString().toLowerCase();
 
-    // Parse stores WITH enabledModules (new in this Electron build)
+    // Parse stores WITH enabledModules
     // mirrors Electron auth.js: userData.stores.forEach(s => storeModules[s.id] = s.enabledModules)
     final stores = (src['stores'] as List<dynamic>? ?? []).map((s) {
       if (s is Map) {
@@ -138,24 +174,39 @@ class AuthService extends GetxService {
   }
 
   // ── RESTORE SESSION ───────────────────────────────────────────────────────
+  // Mirrors Electron api.js tryRestoreSession():
+  //   1. Load persisted refresh token
+  //   2. Try to refresh → get new access token
+  //   3. If refresh fails → session expired
+  //   4. If no refresh token → return saved session as demo
   Future<AuthResult> tryRestoreSession() async {
-    final saved        = await _storage.getSession();
+    final saved = await _storage.getSession();
     if (saved == null) return AuthResult.fail('No session');
+
+    final savedAccess  = await _storage.getAccessToken();
     final savedRefresh = await _storage.getRefreshToken();
+
+    // Demo session — restore with demo tokens (no API calls possible)
     if (savedRefresh == null || savedRefresh == 'demo') {
+      _accessToken  = savedAccess;
+      _refreshToken = savedRefresh;
       return AuthResult.ok(saved, isDemo: savedRefresh == 'demo');
     }
+
+    // Real session — try to refresh the access token
+    // Mirrors Electron: refreshTokenValue = storedRefresh; refreshAccessToken();
     try {
       final r = await http.post(
         Uri.parse('$kApiBaseUrl/api/auth/refresh-token'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refreshToken': savedRefresh}),
       ).timeout(const Duration(seconds: 8));
+
       if (r.statusCode == 200) {
         final d   = jsonDecode(r.body) as Map<String, dynamic>;
         final src = (d['data'] is Map && (d['data'] as Map)['token'] != null)
             ? d['data'] as Map<String, dynamic> : d;
-        final at  = src['token'] ?? src['accessToken'] ?? src['access_token'] ?? src['jwt'];
+        final at    = src['token'] ?? src['accessToken'] ?? src['access_token'] ?? src['jwt'];
         final newRt = src['refreshToken'] ?? src['refresh_token'] ?? savedRefresh;
         if (at != null) {
           _accessToken  = at.toString();
@@ -165,7 +216,16 @@ class AuthService extends GetxService {
           return AuthResult.ok(saved);
         }
       }
-    } catch (_) { return AuthResult.ok(saved, isDemo: true); }
+    } catch (_) {
+      // Network error during refresh — try using the saved access token
+      // (it may still be valid if not expired)
+      if (savedAccess != null && savedAccess != 'demo') {
+        _accessToken  = savedAccess;
+        _refreshToken = savedRefresh;
+        return AuthResult.ok(saved);
+      }
+      return AuthResult.ok(saved, isDemo: true);
+    }
     return AuthResult.fail('Session expired');
   }
 

@@ -51,7 +51,7 @@ class _EditInventoryScreenState extends State<EditInventoryScreen> {
     super.dispose();
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final updated = _item.copyWith(
       name:             _name.text.trim(),
@@ -68,7 +68,32 @@ class _EditInventoryScreenState extends State<EditInventoryScreen> {
       description:      _description.text.trim(),
       status:           _status,
     );
+
+    // ── Always update local state ──
     _ctrl.updateItem(_item.id, updated);
+
+    // ── Try API update — mirrors Electron renderEditInventory submit ──
+    if (_item.backendId != null) {
+      const statusMap = {
+        'In Stock':    'IN_STOCK',
+        'Low Stock':   'ON_APPROVAL',
+        'Sold':        'SOLD',
+        'Reserved':    'ON_APPROVAL',
+        'Out of Stock':'OUT_OF_STOCK',
+      };
+      _ctrl.updateItemViaApi(
+        backendId: _item.backendId,
+        changes: {
+          'name':          updated.name,
+          'description':   updated.description,
+          'grossWeight':   updated.grossWeight,
+          'netWeight':     updated.netWeight,
+          'makingCharges': updated.makingCharge,
+          'status':        statusMap[updated.status] ?? 'IN_STOCK',
+        },
+      );
+    }
+
     Get.back();
     Get.snackbar('Updated', '"${updated.name}" saved!',
         backgroundColor: AppColors.bgCard, colorText: AppColors.textPrimary,
