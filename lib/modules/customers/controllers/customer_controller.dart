@@ -31,6 +31,11 @@ class CustomerController extends GetxController {
     super.onInit();
     _seed();
     _fetchFromApi();
+    // Refresh when user switches store
+    ever(_store.selectedStore, (_) {
+      _lastFetched = null;
+      _fetchFromApi();
+    });
   }
 
   // ── API LOAD — mirrors Electron fetchAllStores → customers.list() ──

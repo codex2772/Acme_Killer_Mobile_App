@@ -165,7 +165,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
           // ── List ──
           Expanded(
             child: Obx(() {
-              final list = controller.filteredCustomers;
+              final list = controller.filteredCustomers.toList();
               if (list.isEmpty) {
                 return Center(
                   child: Column(
@@ -202,6 +202,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 80),
                   itemCount: list.length,
                   itemBuilder: (_, i) {
+                    if (i >= list.length) return const SizedBox.shrink();
                     final c = list[i];
                     return CustomerCard(
                       customer: c,

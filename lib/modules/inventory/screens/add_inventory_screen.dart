@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
@@ -5,6 +6,7 @@ import '../../../core/controllers/auth_controller.dart';
 import '../../../core/controllers/store_controller.dart';
 import '../../../models/inventory_model.dart';
 import '../controllers/inventory_controller.dart';
+import '../../rates_schemes/controllers/rates_schemes_controller.dart';
 
 class AddInventoryScreen extends StatefulWidget {
   const AddInventoryScreen({super.key});
@@ -31,6 +33,9 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
   final _description = TextEditingController();
   final _stoneCarat = TextEditingController();
   final _stoneColor = TextEditingController();
+  final _stoneCharges = TextEditingController(
+    text: '0',
+  ); // mirrors Electron inv-stonecharges
 
   String _category = 'Necklace';
   String _metal = 'Gold';
@@ -46,8 +51,11 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
   String? _selectedStoreName;
   int? _selectedStoreId;
 
-  // Live price preview state
+  // Live price preview state — mirrors Electron inv-price-preview
   double _livePriceEstimate = 0;
+  double _liveRate = 0;
+  double _liveMetalValue = 0;
+  double _liveMakingValue = 0;
 
   static const _categories = [
     'Necklace',
@@ -115,15 +123,48 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
   ];
   static const _certs = ['None', 'GIA', 'IGI', 'AGS', 'HRD', 'Other'];
 
-  // Gold rates for live price (mirrors Electron state.goldRate)
-  static const _rates = {
-    '24K': 7350.0,
-    '22K': 6285.0,
-    '18K': 5140.0,
-    '14K': 4010.0,
-    '925 Silver': 92.0,
-    '950 Platinum': 3150.0,
-  };
+  // mirrors Electron: getRateForPurity(metal, purity)
+  // reads from RatesSchemesController — the same live /api/rates data
+  double _getRateForPurity(String metal, String purity) {
+    try {
+      final rates = Get.find<RatesSchemesController>();
+      int liveRate = 0;
+      if (metal == 'Gold' || metal == 'Rose Gold' || metal == 'White Gold') {
+        switch (purity) {
+          case '24K':
+            liveRate = rates.metals[0].rate.value;
+            break;
+          case '22K':
+            liveRate = rates.metals[1].rate.value;
+            break;
+          case '18K':
+            liveRate = rates.metals[2].rate.value;
+            break;
+          case '14K':
+            liveRate = rates.metals[3].rate.value;
+            break;
+          default:
+            liveRate = rates.metals[1].rate.value;
+        }
+      } else if (metal == 'Silver') {
+        liveRate = rates.metals[4].rate.value;
+      } else if (metal == 'Platinum') {
+        liveRate = rates.metals[5].rate.value;
+      }
+
+      if (liveRate > 0) return liveRate.toDouble(); // ← live rate available
+
+      // Rate is 0 — API hasn't responded yet, trigger load in background
+      debugPrint(
+        '[AddInventory] Rate=0 for $purity, triggering refreshRates...',
+      );
+      rates.refreshRates();
+    } catch (e) {
+      debugPrint('[AddInventory] RatesSchemesController not found: $e');
+    }
+    // Return 0 — price preview stays hidden until live rate arrives
+    return 0.0;
+  }
 
   @override
   void initState() {
@@ -133,6 +174,15 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
       final store = Get.find<StoreController>();
       _selectedStoreName = store.selectedStoreName;
       _selectedStoreId = store.selectedStore.value?.id;
+    } catch (_) {}
+
+    // When live rates arrive (from API), recalculate price preview automatically
+    // This handles the case where AddInventory opened before rates loaded
+    try {
+      final rates = Get.find<RatesSchemesController>();
+      ever(rates.metals[1].rate, (_) {
+        if (mounted) _updateLivePrice();
+      });
     } catch (_) {}
   }
 
@@ -154,22 +204,32 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
       _description,
       _stoneCarat,
       _stoneColor,
+      _stoneCharges,
     ])
       c.dispose();
     super.dispose();
   }
 
-  // mirrors Electron: live price = netWeight × rate + making%
+  // mirrors Electron updatePricePreview():
+  //   metalValue = netWt × rate
+  //   makingValue = metalValue × making%
+  //   total = metalValue + makingValue + stoneCharges
   void _updateLivePrice() {
     final nw = double.tryParse(_netWeight.text) ?? 0;
     final making = double.tryParse(_makingCharge.text) ?? 12;
-    final rate = _rates[_purity] ?? 0;
+    final stoneCh = double.tryParse(_stoneCharges.text) ?? 0;
+    final rate = _getRateForPurity(_metal, _purity); // ← LIVE rate
     final metal = nw * rate;
-    final est = metal + (metal * making / 100);
+    final makingV = metal * making / 100;
+    final total = metal + makingV + stoneCh;
     setState(() {
-      _livePriceEstimate = est;
+      _livePriceEstimate = total;
+      _liveRate = rate;
+      _liveMetalValue = metal;
+      _liveMakingValue = makingV;
+      // Auto-fill selling price if blank
       if (_sellingPrice.text.isEmpty || _sellingPrice.text == '0') {
-        _sellingPrice.text = est.round().toString();
+        _sellingPrice.text = total.round().toString();
       }
     });
   }
@@ -253,7 +313,8 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
           netWeight: item.netWeight,
           grossWeight: item.grossWeight,
           makingCharges: item.makingCharge,
-          stoneCharges: 0,
+          stoneCharges:
+              double.tryParse(_stoneCharges.text) ?? 0, // ← live value
           quantity: item.safeQty,
           hsnCode: '7113',
           barcode: item.barcode,
@@ -385,35 +446,57 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
 
             const SizedBox(height: 8),
             _section('Pricing', Icons.currency_rupee),
-            // ── Live price preview — mirrors Electron updatePricePreview() ──
+            // ── Live price preview — mirrors Electron inv-price-preview ──
             if (_livePriceEstimate > 0)
               Container(
                 margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.goldPrimary.withOpacity(0.08),
+                  color: AppColors.goldPrimary.withOpacity(0.06),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: AppColors.goldPrimary.withOpacity(0.3),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
                   children: [
-                    const Text(
-                      'Estimated Price',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
+                    // Row: Rate/g | Metal Value | Making
+                    Row(
+                      children: [
+                        _priceCell(
+                          'Rate/g ($_purity)',
+                          '₹${_liveRate.round()}',
+                        ),
+                        _priceCell(
+                          'Metal Value',
+                          '₹${_liveMetalValue.round()}\n${_netWeight.text}g × ₹${_liveRate.round()}',
+                        ),
+                        _priceCell(
+                          'Making (${_makingCharge.text}%)',
+                          '₹${_liveMakingValue.round()}',
+                        ),
+                      ],
                     ),
-                    Text(
-                      '₹${_livePriceEstimate.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
-                      style: const TextStyle(
-                        color: AppColors.goldPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
+                    const Divider(color: AppColors.border, height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Estimated Selling Price',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          '₹${_livePriceEstimate.round()}',
+                          style: const TextStyle(
+                            color: AppColors.goldPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -426,6 +509,12 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
                 'Making %',
                 onChanged: (_) => _updateLivePrice(),
               ),
+            ),
+            // Stone charges — mirrors Electron inv-stonecharges field
+            _numField(
+              _stoneCharges,
+              'Stone Charges (₹)',
+              onChanged: (_) => _updateLivePrice(),
             ),
 
             const SizedBox(height: 8),
@@ -599,6 +688,29 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
       ),
     );
   }
+
+  // ── Price breakdown cell — mirrors Electron price preview grid ──
+  Widget _priceCell(String label, String value) => Expanded(
+    child: Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    ),
+  );
 
   // ─── Helpers ───
   Widget _section(String title, IconData icon) => Padding(

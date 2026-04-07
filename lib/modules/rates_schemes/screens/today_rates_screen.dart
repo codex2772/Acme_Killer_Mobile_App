@@ -3,8 +3,24 @@ import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../controllers/rates_schemes_controller.dart';
 
-class TodayRatesScreen extends GetView<RatesSchemesController> {
+class TodayRatesScreen extends StatefulWidget {
   const TodayRatesScreen({super.key});
+  @override
+  State<TodayRatesScreen> createState() => _TodayRatesScreenState();
+}
+
+class _TodayRatesScreenState extends State<TodayRatesScreen> {
+  late final RatesSchemesController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.find<RatesSchemesController>();
+    // Always fetch fresh rates on screen open — never show stale data
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => controller.refreshRates(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,94 +55,27 @@ class TodayRatesScreen extends GetView<RatesSchemesController> {
           ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: ElevatedButton.icon(
-              onPressed: () => _showUpdateRates(context),
-              icon: const Icon(
-                Icons.refresh_rounded,
-                size: 14,
-                color: Colors.black,
-              ),
-              label: const Text(
-                'Update',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.goldPrimary,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 0,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                elevation: 0,
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(14),
-        children: [
-          // Last updated
-          Row(
-            children: [
-              const Icon(
-                Icons.access_time_outlined,
-                color: AppColors.textMuted,
-                size: 13,
-              ),
-              const SizedBox(width: 6),
-              const Text(
-                'Last updated: 10:30 AM, 12 Mar 2026',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Rates grid
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.4,
-            ),
-            itemCount: controller.metals.length,
-            itemBuilder: (_, i) => _RateCard(metal: controller.metals[i]),
-          ),
-
-          const SizedBox(height: 20),
-
-          // 30-day chart
-          _sectionTitle(Icons.trending_up_rounded, '30-Day Rate History'),
-          _BarChart(entries: controller.rateHistory),
-
-          const SizedBox(height: 16),
-
-          // History table
-          _sectionTitle(Icons.table_chart_outlined, 'Rate History Table'),
-          _RateHistoryTable(entries: controller.rateHistory),
-
-          const SizedBox(height: 16),
-
-          // Rate Alerts
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _sectionTitleWidget(Icons.notifications_outlined, 'Rate Alerts'),
-              ElevatedButton.icon(
-                onPressed: () => _showAddAlert(context),
-                icon: const Icon(Icons.add, size: 14, color: Colors.black),
+            child: Obx(
+              () => ElevatedButton.icon(
+                onPressed: controller.isFetchingLive.value
+                    ? null
+                    : () => _showUpdateRates(context),
+                icon: controller.isFetchingLive.value
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          color: Colors.black,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.refresh_rounded,
+                        size: 14,
+                        color: Colors.black,
+                      ),
                 label: const Text(
-                  'Add Alert',
+                  'Update',
                   style: TextStyle(
                     color: Colors.black,
                     fontSize: 12,
@@ -137,7 +86,7 @@ class TodayRatesScreen extends GetView<RatesSchemesController> {
                   backgroundColor: AppColors.goldPrimary,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
-                    vertical: 8,
+                    vertical: 0,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -145,19 +94,109 @@ class TodayRatesScreen extends GetView<RatesSchemesController> {
                   elevation: 0,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Obx(
-            () => Column(
-              children: controller.rateAlerts
-                  .map((a) => _AlertRow(alert: a, ctrl: controller))
-                  .toList(),
             ),
           ),
-          const SizedBox(height: 30),
         ],
       ),
+      body: Obx(() {
+        // ── Obx here so the entire body rebuilds when isLoadingRates or
+        //    any metal.rate.value changes (since rate is RxInt) ──
+        if (controller.isLoadingRates.value) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.goldPrimary),
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.all(14),
+          children: [
+            // Last updated
+            Row(
+              children: [
+                const Icon(
+                  Icons.access_time_outlined,
+                  color: AppColors.textMuted,
+                  size: 13,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Gold 22K: ₹${controller.metals[1].rate.value}/g  •  Updated: ${DateTime.now().toIso8601String().substring(0, 10)}',
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ── Rates grid — Obx inside each card handles per-card rebuilds ──
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 1.4,
+              ),
+              itemCount: controller.metals.length,
+              itemBuilder: (_, i) => _RateCard(metal: controller.metals[i]),
+            ),
+
+            const SizedBox(height: 20),
+
+            _sectionTitle(Icons.trending_up_rounded, '30-Day Rate History'),
+            _BarChart(entries: controller.rateHistory),
+            const SizedBox(height: 16),
+
+            _sectionTitle(Icons.table_chart_outlined, 'Rate History Table'),
+            _RateHistoryTable(entries: controller.rateHistory),
+            const SizedBox(height: 16),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _sectionTitleWidget(
+                  Icons.notifications_outlined,
+                  'Rate Alerts',
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => _showAddAlert(context),
+                  icon: const Icon(Icons.add, size: 14, color: Colors.black),
+                  label: const Text(
+                    'Add Alert',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.goldPrimary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Obx(
+              () => Column(
+                children: controller.rateAlerts
+                    .map((a) => _AlertRow(alert: a, ctrl: controller))
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 30),
+          ],
+        );
+      }),
     );
   }
 
@@ -207,7 +246,8 @@ class TodayRatesScreen extends GetView<RatesSchemesController> {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              // updateRates() sets RxInt values → Obx rebuilds UI immediately
               controller.updateRates(
                 g22k: int.tryParse(g22.text),
                 g24k: int.tryParse(g24.text),
@@ -216,13 +256,12 @@ class TodayRatesScreen extends GetView<RatesSchemesController> {
                 platinum: int.tryParse(pla.text),
               );
               Get.back();
-              Get.snackbar(
-                'Rates Updated',
-                'Gold 22K: ₹${g22.text}/g',
-                backgroundColor: AppColors.bgCard,
-                colorText: AppColors.textPrimary,
-                snackPosition: SnackPosition.BOTTOM,
-                margin: const EdgeInsets.all(12),
+              // Save to API in background
+              final saved = await controller.saveRates();
+              _snack(
+                saved
+                    ? 'Rates saved to server — Gold 22K: ₹${g22.text}/g'
+                    : 'Rates updated locally — Gold 22K: ₹${g22.text}/g',
               );
             },
             style: ElevatedButton.styleFrom(
@@ -289,23 +328,22 @@ class TodayRatesScreen extends GetView<RatesSchemesController> {
               ),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 final t = int.tryParse(threshCtrl.text) ?? 0;
                 if (t == 0) return;
                 final newId =
                     'RA${(controller.rateAlerts.length + 1).toString().padLeft(3, '0')}';
-                controller.addRateAlert(
-                  RateAlert(
-                    id: newId,
-                    metal: metal,
-                    condition: cond,
-                    threshold: t,
-                    customer: custCtrl.text.trim().isEmpty
-                        ? 'All'
-                        : custCtrl.text.trim(),
-                    active: true,
-                  ),
+                final alert = RateAlert(
+                  id: newId,
+                  metal: metal,
+                  condition: cond,
+                  threshold: t,
+                  customer: custCtrl.text.trim().isEmpty
+                      ? 'All'
+                      : custCtrl.text.trim(),
+                  active: true,
                 );
+                controller.addRateAlert(alert);
                 Get.back();
                 _snack('Rate alert added!');
               },
@@ -475,9 +513,13 @@ class TodayRatesScreen extends GetView<RatesSchemesController> {
   );
 }
 
+// ════════════════════════════════════════════════════════════════════
+// _RateCard — Obx wraps BOTH rate value and tola so they rebuild
+// when metal.rate.value changes (it's RxInt)
+// ════════════════════════════════════════════════════════════════════
 class _RateCard extends StatelessWidget {
   final MetalRate metal;
-  const _RateCard({required this.metal});
+  const _RateCard({super.key, required this.metal});
 
   @override
   Widget build(BuildContext context) {
@@ -510,7 +552,7 @@ class _RateCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: metal.trendUp
+                  color: metal.trendUp.value
                       ? AppColors.success.withOpacity(0.1)
                       : AppColors.error.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(6),
@@ -519,19 +561,19 @@ class _RateCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      metal.trendUp
+                      metal.trendUp.value
                           ? Icons.arrow_upward_rounded
                           : Icons.arrow_downward_rounded,
-                      color: metal.trendUp
+                      color: metal.trendUp.value
                           ? AppColors.success
                           : AppColors.error,
                       size: 9,
                     ),
                     const SizedBox(width: 2),
                     Text(
-                      metal.change,
+                      metal.change.value.isEmpty ? "—" : metal.change.value,
                       style: TextStyle(
-                        color: metal.trendUp
+                        color: metal.trendUp.value
                             ? AppColors.success
                             : AppColors.error,
                         fontSize: 9,
@@ -544,22 +586,34 @@ class _RateCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            '₹${metal.rate.value}',
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
+
+          // ── Obx so rate + tola rebuild when RxInt changes ──
+          Obx(
+            () => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '₹${metal.rate.value}',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const Text(
+                  '/gram',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '₹${metal.tolaRate}/tola',
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
             ),
-          ),
-          Text(
-            '/gram',
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            '₹${metal.tolaRate}/tola',
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
           ),
         ],
       ),
@@ -569,7 +623,7 @@ class _RateCard extends StatelessWidget {
 
 class _BarChart extends StatelessWidget {
   final List<RateHistoryEntry> entries;
-  const _BarChart({required this.entries});
+  const _BarChart({super.key, required this.entries});
 
   @override
   Widget build(BuildContext context) {
@@ -644,7 +698,7 @@ class _BarChart extends StatelessWidget {
 
 class _RateHistoryTable extends StatelessWidget {
   final List<RateHistoryEntry> entries;
-  const _RateHistoryTable({required this.entries});
+  const _RateHistoryTable({super.key, required this.entries});
 
   @override
   Widget build(BuildContext context) {
@@ -802,11 +856,10 @@ class _RateHistoryTable extends StatelessWidget {
 class _AlertRow extends StatelessWidget {
   final RateAlert alert;
   final RatesSchemesController ctrl;
-  const _AlertRow({required this.alert, required this.ctrl});
+  const _AlertRow({super.key, required this.alert, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
-    final isActive = alert.active;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -859,15 +912,17 @@ class _AlertRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: isActive
+                  color: alert.active
                       ? AppColors.success.withOpacity(0.1)
                       : AppColors.border.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  isActive ? 'Active' : 'Paused',
+                  alert.active ? 'Active' : 'Paused',
                   style: TextStyle(
-                    color: isActive ? AppColors.success : AppColors.textMuted,
+                    color: alert.active
+                        ? AppColors.success
+                        : AppColors.textMuted,
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                   ),
@@ -877,7 +932,7 @@ class _AlertRow extends StatelessWidget {
               GestureDetector(
                 onTap: () => ctrl.toggleAlert(alert.id),
                 child: Icon(
-                  isActive
+                  alert.active
                       ? Icons.pause_circle_outline
                       : Icons.play_circle_outline,
                   color: AppColors.info,
@@ -886,9 +941,7 @@ class _AlertRow extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               GestureDetector(
-                onTap: () {
-                  ctrl.deleteAlert(alert.id);
-                },
+                onTap: () => ctrl.deleteAlert(alert.id),
                 child: const Icon(
                   Icons.delete_outline,
                   color: AppColors.error,

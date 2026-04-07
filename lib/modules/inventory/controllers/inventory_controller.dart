@@ -42,6 +42,11 @@ class InventoryController extends GetxController {
     super.onInit();
     _seedDemoData();
     _fetchFromApi();
+    // Refresh when user switches store — permanent controller won't recreate
+    ever(_store.selectedStore, (_) {
+      _lastFetched = null; // invalidate cache
+      _fetchFromApi();
+    });
   }
 
   // ════════════════════════════════════════════════════════════════

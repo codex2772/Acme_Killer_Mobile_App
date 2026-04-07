@@ -1,6 +1,7 @@
 class BillingItem {
   String name;
-  String inventoryId;
+  String inventoryId; // local SKU string e.g. 'INV42'
+  int? backendId; // actual DB integer id — used for API payload
   double weight;
   double rate;
   double making;
@@ -11,6 +12,7 @@ class BillingItem {
   BillingItem({
     this.name = '',
     this.inventoryId = '',
+    this.backendId,
     this.weight = 0,
     this.rate = 0,
     this.making = 12,

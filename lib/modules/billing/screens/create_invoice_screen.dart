@@ -8,33 +8,157 @@ import '../controllers/billing_controller.dart';
 import '../widgets/billing_summary.dart';
 import '../widgets/invoice_item_row.dart';
 
-// ════════════════════════════════════════════════════════════════════
-// CreateInvoiceScreen — FULL REWRITE
-//
-// Fixes vs previous build (all mirroring Electron billing.js):
-//  1. Store picker when owner is in "All Stores" mode
-//  2. CGST/SGST split in summary
-//  3. Amount in Words (Indian format)
-//  4. Multi-mode split payment array (Cash + UPI + Card together)
-//     mirrors Electron splitPayments[] exactly
-//  5. API call via createInvoiceViaApi() — no longer local-only
-//  6. Old gold purity selector
-//  7. Round-off handling
-//  8. Digital signature from staff list
-// ════════════════════════════════════════════════════════════════════
-class CreateInvoiceScreen extends GetView<BillingController> {
-  CreateInvoiceScreen({super.key});
+class CreateInvoiceScreen extends StatefulWidget {
+  const CreateInvoiceScreen({super.key});
+  @override
+  State<CreateInvoiceScreen> createState() => _CreateInvoiceScreenState();
+}
 
-  final CustomerController _custCtrl = Get.find<CustomerController>();
+class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
+  late final BillingController controller;
+  late final CustomerController _custCtrl;
+
   final _dueDateCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   final RxString _invoiceType = 'tax'.obs;
   final RxBool _isSubmitting = false.obs;
 
   @override
-  Widget build(BuildContext context) {
+  void initState() {
+    super.initState();
+    controller = Get.find<BillingController>();
+    _custCtrl = Get.find<CustomerController>();
     controller.clearBuilder();
+  }
 
+  @override
+  void dispose() {
+    _dueDateCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // SAVE INVOICE
+  // ════════════════════════════════════════════════════════════════
+  Future<void> _saveInvoice() async {
+    final storeErr = controller.validateStoreSelection();
+    if (storeErr != null) {
+      _showError(storeErr);
+      return;
+    }
+    if (controller.customer.value.isEmpty) {
+      _showError('Please select a customer');
+      return;
+    }
+    if (controller.items.isEmpty) {
+      _showError('Add at least one item');
+      return;
+    }
+
+    _isSubmitting.value = true;
+
+    final splits = controller.splitPayments;
+    final totalPaid = splits.fold<int>(0, (s, p) => s + p.amount);
+    final isPartial = totalPaid > 0 && totalPaid < controller.grandTotal;
+    final paymentStatus = totalPaid <= 0
+        ? 'UNPAID'
+        : (isPartial ? 'PARTIAL' : 'PAID');
+
+    const payModeMap = {
+      'Cash': 'CASH',
+      'UPI': 'UPI',
+      'Card': 'CARD',
+      'RTGS/NEFT': 'BANK_TRANSFER',
+      'Cheque': 'BANK_TRANSFER',
+    };
+    final primaryMode =
+        payModeMap[splits.isNotEmpty ? splits[0].mode : 'Cash'] ?? 'CASH';
+
+    final lineItems = controller.items.map((item) {
+      final backendIntId =
+          item.backendId; // int? — set when inventory item selected
+      return {
+        'name': item.name,
+        'jewelryItemId': backendIntId,
+        'weight': double.parse(item.weight.toStringAsFixed(3)),
+        'rate': double.parse(item.rate.toStringAsFixed(2)),
+        'purity': item.purity,
+        'makingCharge': double.parse(item.making.toStringAsFixed(2)),
+        'makingChargeType': 'PERCENTAGE',
+        'amount': item.total,
+        'hsn': '7113',
+        'backendId': backendIntId,
+      };
+    }).toList();
+
+    final auth = Get.find<AuthController>();
+    if (!auth.isDemo.value) {
+      final ok = await controller.createInvoiceViaApi(
+        customerId: controller.customerId.value,
+        customerName: controller.customer.value,
+        total: controller.grandTotal,
+        gstAmount: controller.gstAmount,
+        discountAmount: controller.discount.value,
+        paymentMode: primaryMode,
+        paymentStatus: paymentStatus,
+        lineItems: lineItems,
+        dueDate: _dueDateCtrl.text.isEmpty ? null : _dueDateCtrl.text,
+        notes: _notesCtrl.text,
+      );
+      _isSubmitting.value = false;
+      if (ok) {
+        await controller.restoreStoreContext();
+        Get.back();
+        Get.snackbar(
+          'Invoice Created',
+          'Invoice saved to server!',
+          backgroundColor: AppColors.bgCard,
+          colorText: AppColors.success,
+          snackPosition: SnackPosition.BOTTOM,
+          margin: const EdgeInsets.all(12),
+        );
+        return;
+      } else {
+        Get.snackbar(
+          'API Error',
+          'Saved locally — will sync later',
+          backgroundColor: AppColors.bgCard,
+          colorText: AppColors.warning,
+          snackPosition: SnackPosition.BOTTOM,
+          margin: const EdgeInsets.all(12),
+        );
+      }
+    }
+
+    final inv = controller.saveInvoice(
+      dueDateStr: _dueDateCtrl.text.isEmpty ? null : _dueDateCtrl.text,
+      notes: _notesCtrl.text,
+    );
+    _isSubmitting.value = false;
+    await controller.restoreStoreContext();
+    Get.back();
+    Get.snackbar(
+      'Invoice Created',
+      'Invoice #${inv.id} saved!',
+      backgroundColor: AppColors.bgCard,
+      colorText: AppColors.textPrimary,
+      snackPosition: SnackPosition.BOTTOM,
+      margin: const EdgeInsets.all(12),
+    );
+  }
+
+  void _showError(String msg) => Get.snackbar(
+    'Error',
+    msg,
+    backgroundColor: AppColors.error.withOpacity(0.2),
+    colorText: AppColors.error,
+    snackPosition: SnackPosition.BOTTOM,
+    margin: const EdgeInsets.all(12),
+  );
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
       appBar: AppBar(
@@ -64,46 +188,33 @@ class CreateInvoiceScreen extends GetView<BillingController> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── 1. STORE PICKER (All Stores mode) ──
                   _storePicker(),
-
-                  // ── 2. Customer ──
                   _sectionCard(
                     'Customer',
                     Icons.person_outline,
                     _customerSection(),
                   ),
                   const SizedBox(height: 12),
-
-                  // ── 3. Invoice info ──
                   _sectionCard(
                     'Invoice Details',
                     Icons.info_outline,
                     _invoiceInfoSection(),
                   ),
                   const SizedBox(height: 12),
-
-                  // ── 4. Items ──
                   _itemsSection(),
                   const SizedBox(height: 12),
-
-                  // ── 5. Payment (with split payment support) ──
                   _sectionCard(
                     'Payment',
                     Icons.payment_outlined,
                     _paymentSection(),
                   ),
                   const SizedBox(height: 12),
-
-                  // ── 6. Old gold ──
                   _sectionCard(
                     'Old Gold Adjustment (Optional)',
                     Icons.repeat_rounded,
                     _oldGoldSection(),
                   ),
                   const SizedBox(height: 12),
-
-                  // ── 7. Notes ──
                   _sectionCard('Notes', Icons.notes_outlined, _notesSection()),
                 ],
               ),
@@ -115,14 +226,10 @@ class CreateInvoiceScreen extends GetView<BillingController> {
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // STORE PICKER — mirrors Electron storePickerHTML()
-  // Only shown when owner has multiple stores and no specific store selected
-  // ════════════════════════════════════════════════════════════════
+  // ── Store picker ──
   Widget _storePicker() {
     return Obx(() {
       if (!controller.isAllStoresMode) return const SizedBox.shrink();
-
       return Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
@@ -136,7 +243,11 @@ class CreateInvoiceScreen extends GetView<BillingController> {
           children: [
             Row(
               children: [
-                Icon(Icons.store_outlined, color: AppColors.warning, size: 16),
+                const Icon(
+                  Icons.store_outlined,
+                  color: AppColors.warning,
+                  size: 16,
+                ),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
@@ -171,18 +282,20 @@ class CreateInvoiceScreen extends GetView<BillingController> {
                     color: AppColors.textPrimary,
                     fontSize: 13,
                   ),
-                  items: controller.availableStores.map((s) {
-                    return DropdownMenuItem<int>(
-                      value: s.id,
-                      child: Text(
-                        s.name,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 13,
+                  items: controller.availableStores
+                      .map(
+                        (s) => DropdownMenuItem<int>(
+                          value: s.id,
+                          child: Text(
+                            s.name,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                            ),
+                          ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                      )
+                      .toList(),
                   onChanged: (id) {
                     if (id == null) return;
                     final store = controller.availableStores.firstWhereOrNull(
@@ -199,142 +312,7 @@ class CreateInvoiceScreen extends GetView<BillingController> {
     });
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // SAVE INVOICE — calls API first, falls back to local
-  // mirrors Electron billing.js form submit handler
-  // ════════════════════════════════════════════════════════════════
-  Future<void> _saveInvoice() async {
-    // Validate store selection
-    final storeErr = controller.validateStoreSelection();
-    if (storeErr != null) {
-      _showError(storeErr);
-      return;
-    }
-
-    if (controller.customer.value.isEmpty) {
-      _showError('Please select a customer');
-      return;
-    }
-    if (controller.items.isEmpty) {
-      _showError('Add at least one item');
-      return;
-    }
-
-    _isSubmitting.value = true;
-
-    // ── Compute payment status from splitPayments[] array ──
-    // mirrors Electron: tracks each mode's amount separately
-    final splits = controller.splitPayments;
-    final totalPaid = splits.fold<int>(0, (s, p) => s + p.amount);
-    final isPartial = totalPaid > 0 && totalPaid < controller.grandTotal;
-    final paymentStatus = totalPaid <= 0
-        ? 'UNPAID'
-        : (isPartial ? 'PARTIAL' : 'PAID');
-
-    // Primary payment mode = first split's mode (for backend compatibility)
-    // mirrors Electron: inv.paymentMode = splitPayments[0].mode || 'Cash'
-    const payModeMap = {
-      'Cash': 'CASH',
-      'UPI': 'UPI',
-      'Card': 'CARD',
-      'RTGS/NEFT': 'BANK_TRANSFER',
-      'Cheque': 'BANK_TRANSFER',
-    };
-    final primaryMode =
-        payModeMap[splits.isNotEmpty ? splits[0].mode : 'Cash'] ?? 'CASH';
-
-    // Build line items for API (mirrors Electron apiItems[])
-    final lineItems = controller.items.map((item) {
-      return {
-        'name': item.name,
-        'jewelryItemId': item.inventoryId.isNotEmpty ? item.inventoryId : null,
-        'weight': item.weight,
-        'rate': item.rate,
-        'purity': item.purity,
-        'makingCharge': item.making,
-        'makingChargeType': 'PERCENTAGE',
-        'amount': item.total,
-        'hsn': '7113',
-        'backendId': item.inventoryId.isNotEmpty ? item.inventoryId : null,
-      };
-    }).toList();
-
-    // Try API first
-    final auth = Get.find<AuthController>();
-    if (!auth.isDemo.value) {
-      final ok = await controller.createInvoiceViaApi(
-        customerId: controller.customerId.value,
-        customerName: controller.customer.value,
-        total: controller.grandTotal,
-        gstAmount: controller.gstAmount,
-        discountAmount: controller.discount.value,
-        paymentMode: primaryMode,
-        paymentStatus: paymentStatus,
-        // splitPayments: splits.map((s) => {'mode': payModeMap[s.mode] ?? 'CASH', 'amount': s.amount}).toList(),
-        lineItems: lineItems,
-        dueDate: _dueDateCtrl.text.isEmpty ? null : _dueDateCtrl.text,
-        notes: _notesCtrl.text,
-      );
-
-      _isSubmitting.value = false;
-
-      if (ok) {
-        await controller.restoreStoreContext();
-        Get.back();
-        Get.snackbar(
-          'Invoice Created',
-          'Invoice saved to server!',
-          backgroundColor: AppColors.bgCard,
-          colorText: AppColors.success,
-          snackPosition: SnackPosition.BOTTOM,
-          margin: const EdgeInsets.all(12),
-        );
-        return;
-      } else {
-        // API failed — fall through to local save
-        Get.snackbar(
-          'API Error',
-          'Saved locally — will sync later',
-          backgroundColor: AppColors.bgCard,
-          colorText: AppColors.warning,
-          snackPosition: SnackPosition.BOTTOM,
-          margin: const EdgeInsets.all(12),
-        );
-      }
-    }
-
-    // Local fallback (demo mode or API failure)
-    final inv = controller.saveInvoice(
-      dueDateStr: _dueDateCtrl.text.isEmpty ? null : _dueDateCtrl.text,
-      notes: _notesCtrl.text,
-    );
-    _isSubmitting.value = false;
-    await controller.restoreStoreContext();
-    Get.back();
-    Get.snackbar(
-      'Invoice Created',
-      'Invoice #${inv.id} saved!',
-      backgroundColor: AppColors.bgCard,
-      colorText: AppColors.textPrimary,
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(12),
-    );
-  }
-
-  void _showError(String msg) {
-    Get.snackbar(
-      'Error',
-      msg,
-      backgroundColor: AppColors.error.withOpacity(0.2),
-      colorText: AppColors.error,
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(12),
-    );
-  }
-
-  // ════════════════════════════════════════════════════════════════
-  // CUSTOMER SECTION
-  // ════════════════════════════════════════════════════════════════
+  // ── Customer section ──
   Widget _customerSection() {
     return Obx(
       () => DropdownButtonFormField<String>(
@@ -369,9 +347,7 @@ class CreateInvoiceScreen extends GetView<BillingController> {
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // INVOICE INFO SECTION
-  // ════════════════════════════════════════════════════════════════
+  // ── Invoice info section ──
   Widget _invoiceInfoSection() {
     return Column(
       children: [
@@ -436,9 +412,7 @@ class CreateInvoiceScreen extends GetView<BillingController> {
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // ITEMS SECTION
-  // ════════════════════════════════════════════════════════════════
+  // ── Items section ──
   Widget _itemsSection() {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -518,96 +492,103 @@ class CreateInvoiceScreen extends GetView<BillingController> {
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // PAYMENT SECTION — multi-mode split payment array
-  // mirrors Electron splitPayments[] exactly:
-  //   Cash ₹50,000 + UPI ₹30,000 + Card ₹20,000 → total ₹1,00,000
-  // User adds multiple rows, each with its own mode + amount
-  // ════════════════════════════════════════════════════════════════
+  // ── Payment section ──
   Widget _paymentSection() {
-    return Obx(() {
-      final splits = controller.splitPayments;
-      final totalPaid = splits.fold<int>(0, (s, p) => s + p.amount);
-      final balance = controller.grandTotal - totalPaid;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Discount + GST
+        Row(
+          children: [
+            Expanded(
+              child: _numFieldCtrl('Discount (₹)', controller.setDiscount),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _field(
+                'GST (%)',
+                TextEditingController(text: '${controller.gstRate.value}'),
+                keyboardType: TextInputType.number,
+                onChanged: (v) =>
+                    controller.gstRate.value = int.tryParse(v) ?? 3,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
 
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Discount + GST row ──
-          Row(
-            children: [
-              Expanded(
-                child: _numFieldCtrl('Discount (₹)', controller.setDiscount),
+        // Header row
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Payment Modes',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _field(
-                  'GST (%)',
-                  TextEditingController(text: '${controller.gstRate.value}'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) =>
-                      controller.gstRate.value = int.tryParse(v) ?? 3,
+            ),
+            GestureDetector(
+              onTap: controller.addSplitPayment,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // ── Split payment rows header ──
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Payment Modes',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                decoration: BoxDecoration(
+                  color: AppColors.goldPrimary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.goldPrimary.withOpacity(0.4),
+                  ),
                 ),
-              ),
-              GestureDetector(
-                onTap: controller.addSplitPayment,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.goldPrimary.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: AppColors.goldPrimary.withOpacity(0.4),
-                    ),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.add, size: 12, color: AppColors.goldPrimary),
-                      SizedBox(width: 4),
-                      Text(
-                        'Add Mode',
-                        style: TextStyle(
-                          color: AppColors.goldPrimary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add, size: 12, color: AppColors.goldPrimary),
+                    SizedBox(width: 4),
+                    Text(
+                      'Add Mode',
+                      style: TextStyle(
+                        color: AppColors.goldPrimary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
 
-          // ── One row per split payment ──
-          ...splits.asMap().entries.map(
-            (entry) => _splitRow(entry.key, entry.value),
+        // Split rows — each is its own StatefulWidget with a stable controller
+        Obx(
+          () => Column(
+            children: controller.splitPayments
+                .asMap()
+                .entries
+                .map(
+                  (e) => _SplitPaymentRow(
+                    key: ValueKey('split_${e.key}'),
+                    index: e.key,
+                  ),
+                )
+                .toList(),
           ),
+        ),
 
-          // ── Balance summary bar ──
-          const SizedBox(height: 10),
-          Container(
+        // Balance bar
+        const SizedBox(height: 10),
+        Obx(() {
+          final totalPaid = controller.splitPayments.fold<int>(
+            0,
+            (s, p) => s + p.amount,
+          );
+          final balance = controller.grandTotal - totalPaid;
+          return Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: balance > 0
@@ -624,7 +605,7 @@ class CreateInvoiceScreen extends GetView<BillingController> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${splits.length} mode(s) • Paid ₹$totalPaid',
+                  '${controller.splitPayments.length} mode(s) • Paid ₹$totalPaid',
                   style: TextStyle(
                     color: balance > 0 ? AppColors.warning : AppColors.success,
                     fontSize: 12,
@@ -640,136 +621,13 @@ class CreateInvoiceScreen extends GetView<BillingController> {
                 ),
               ],
             ),
-          ),
-        ],
-      );
-    });
-  }
-
-  Widget _splitRow(int index, SplitPaymentEntry split) {
-    const modes = ['Cash', 'UPI', 'Card', 'RTGS/NEFT', 'Cheque'];
-    final amtCtrl = TextEditingController(
-      text: split.amount > 0 ? '${split.amount}' : '',
-    );
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.bgSecondary,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          // Mode dropdown
-          Expanded(
-            flex: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(
-                color: AppColors.inputFill,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: split.mode,
-                  dropdownColor: AppColors.bgSecondary,
-                  isExpanded: true,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 12,
-                  ),
-                  items: modes
-                      .map(
-                        (m) => DropdownMenuItem(
-                          value: m,
-                          child: Text(
-                            m,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null)
-                      controller.updateSplitPayment(index, mode: v);
-                  },
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Amount field
-          Expanded(
-            flex: 3,
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.inputFill,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: TextField(
-                controller: amtCtrl,
-                keyboardType: TextInputType.number,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                ),
-                onChanged: (v) => controller.updateSplitPayment(
-                  index,
-                  amount: int.tryParse(v) ?? 0,
-                ),
-                decoration: const InputDecoration(
-                  hintText: 'Amount',
-                  hintStyle: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 9,
-                  ),
-                  prefixText: '₹ ',
-                  prefixStyle: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          // Remove button (only if >1 split)
-          if (controller.splitPayments.length > 1)
-            GestureDetector(
-              onTap: () => controller.removeSplitPayment(index),
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppColors.error.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: const Icon(
-                  Icons.close,
-                  color: AppColors.error,
-                  size: 14,
-                ),
-              ),
-            ),
-        ],
-      ),
+          );
+        }),
+      ],
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // OLD GOLD SECTION — with purity dropdown (mirrors Electron)
-  // ════════════════════════════════════════════════════════════════
+  // ── Old gold section ──
   Widget _oldGoldSection() {
     final weightCtrl = TextEditingController();
     final RxString purity = '22K'.obs;
@@ -849,7 +707,7 @@ class CreateInvoiceScreen extends GetView<BillingController> {
 
   Widget _notesSection() => _field('Notes (optional)', _notesCtrl, maxLines: 2);
 
-  // ─── Helpers ───
+  // ── Helpers ──
   Widget _sectionCard(String title, IconData icon, Widget child) => Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
@@ -962,66 +820,72 @@ class CreateInvoiceScreen extends GetView<BillingController> {
     );
   }
 
+  // Due date: StatefulBuilder so text updates without parent rebuild
   Widget _datePicker(String label, TextEditingController ctrl) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
+    return StatefulBuilder(
+      builder: (context, setLocal) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
-        const SizedBox(height: 5),
-        GestureDetector(
-          onTap: () async {
-            final d = await showDatePicker(
-              context: Get.context!,
-              initialDate: DateTime.now().add(const Duration(days: 7)),
-              firstDate: DateTime.now(),
-              lastDate: DateTime(2030),
-              builder: (c, w) => Theme(
-                data: ThemeData.dark().copyWith(
-                  colorScheme: const ColorScheme.dark(
-                    primary: AppColors.goldPrimary,
+          const SizedBox(height: 5),
+          GestureDetector(
+            onTap: () async {
+              final d = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now().add(const Duration(days: 7)),
+                firstDate: DateTime.now(),
+                lastDate: DateTime(2030),
+                builder: (c, w) => Theme(
+                  data: ThemeData.dark().copyWith(
+                    colorScheme: const ColorScheme.dark(
+                      primary: AppColors.goldPrimary,
+                    ),
                   ),
+                  child: w!,
                 ),
-                child: w!,
+              );
+              if (d != null) {
+                ctrl.text = d.toIso8601String().substring(0, 10);
+                setLocal(() {});
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+              decoration: BoxDecoration(
+                color: AppColors.inputFill,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
               ),
-            );
-            if (d != null) ctrl.text = d.toIso8601String().substring(0, 10);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-            decoration: BoxDecoration(
-              color: AppColors.inputFill,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.calendar_today_outlined,
-                  color: AppColors.textMuted,
-                  size: 14,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  ctrl.text.isEmpty ? 'Select date' : ctrl.text,
-                  style: TextStyle(
-                    color: ctrl.text.isEmpty
-                        ? AppColors.textMuted
-                        : AppColors.textPrimary,
-                    fontSize: 13,
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.calendar_today_outlined,
+                    color: AppColors.textMuted,
+                    size: 14,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    ctrl.text.isEmpty ? 'Select date' : ctrl.text,
+                    style: TextStyle(
+                      color: ctrl.text.isEmpty
+                          ? AppColors.textMuted
+                          : AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1044,4 +908,163 @@ class CreateInvoiceScreen extends GetView<BillingController> {
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
   );
+}
+
+// ════════════════════════════════════════════════════════════════════
+// _SplitPaymentRow — StatefulWidget
+// TextEditingController created ONCE in initState.
+// Typing a digit no longer resets the field because Obx rebuilds
+// (triggered by grandTotal / splitPayments changes) don't recreate it.
+// ValueKey('split_$index') ensures Flutter reuses the State correctly.
+// ════════════════════════════════════════════════════════════════════
+class _SplitPaymentRow extends StatefulWidget {
+  final int index;
+  const _SplitPaymentRow({required super.key, required this.index});
+  @override
+  State<_SplitPaymentRow> createState() => _SplitPaymentRowState();
+}
+
+class _SplitPaymentRowState extends State<_SplitPaymentRow> {
+  late final BillingController ctrl;
+  late final TextEditingController _amtCtrl;
+  static const _modes = ['Cash', 'UPI', 'Card', 'RTGS/NEFT', 'Cheque'];
+
+  @override
+  void initState() {
+    super.initState();
+    ctrl = Get.find<BillingController>();
+    final initial = ctrl.splitPayments[widget.index].amount;
+    _amtCtrl = TextEditingController(text: initial > 0 ? '$initial' : '');
+  }
+
+  @override
+  void dispose() {
+    _amtCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (widget.index >= ctrl.splitPayments.length)
+        return const SizedBox.shrink();
+      final split = ctrl.splitPayments[widget.index];
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppColors.bgSecondary,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            // Mode dropdown
+            Expanded(
+              flex: 2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: split.mode,
+                    dropdownColor: AppColors.bgSecondary,
+                    isExpanded: true,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 12,
+                    ),
+                    items: _modes
+                        .map(
+                          (m) => DropdownMenuItem(
+                            value: m,
+                            child: Text(
+                              m,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null)
+                        ctrl.updateSplitPayment(widget.index, mode: v);
+                    },
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Amount — stable controller, no flicker on any rebuild
+            Expanded(
+              flex: 3,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: TextField(
+                  controller: _amtCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                  ),
+                  onChanged: (v) => ctrl.updateSplitPayment(
+                    widget.index,
+                    amount: int.tryParse(v) ?? 0,
+                  ),
+                  decoration: const InputDecoration(
+                    hintText: 'Amount',
+                    hintStyle: TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 9,
+                    ),
+                    prefixText: '₹ ',
+                    prefixStyle: TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+
+            // Remove button
+            if (ctrl.splitPayments.length > 1)
+              GestureDetector(
+                onTap: () => ctrl.removeSplitPayment(widget.index),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: const Icon(
+                    Icons.close,
+                    color: AppColors.error,
+                    size: 14,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    });
+  }
 }

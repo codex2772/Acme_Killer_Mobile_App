@@ -1,10 +1,12 @@
 import 'package:acme_killer_mobile_app/services/settings_service.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:get/get.dart';
 import '../../../models/billing/billing_item_model.dart';
 import '../../../models/billing/invoice_model.dart';
 import '../../../models/billing/payment_split_model.dart';
 import '../../../models/inventory_model.dart';
 import '../../inventory/controllers/inventory_controller.dart';
+import '../../rates_schemes/controllers/rates_schemes_controller.dart';
 import '../../../core/controllers/auth_controller.dart';
 import '../../../core/controllers/store_controller.dart';
 import '../../../services/auth_service.dart';
@@ -143,6 +145,11 @@ class BillingController extends GetxController {
     super.onInit();
     _seedDemoData();
     _fetchFromApi();
+    // Refresh when user switches store
+    ever(_store.selectedStore, (_) {
+      _lastFetched = null;
+      _fetchFromApi();
+    });
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -150,6 +157,7 @@ class BillingController extends GetxController {
   // fetchAllStores: invoices + estimates + creditNotes in parallel
   // ════════════════════════════════════════════════════════════════
   Future<void> _fetchFromApi() async {
+    if (isLoading.value) return; // guard against concurrent fetches
     isLoading.value = true;
     try {
       final billing = Get.find<BillingService>();
@@ -163,24 +171,32 @@ class BillingController extends GetxController {
       final List<Map<String, dynamic>> rawCn = [];
 
       if (stores.length > 1 && _store.selectedStore.value == null) {
-        // Multi-store fetch
-        for (final s in stores) {
-          storeCtx.switchStore(s.id);
-          final ir = await billing.listInvoices();
-          final er = await estimates.list();
-          final cr = await creditNotes.list();
-          _tagStore(ir, s.name, rawInv);
-          _tagStore(er, s.name, rawEst);
-          _tagStore(cr, s.name, rawCn);
-        }
+        // ── Parallel multi-store fetch (mirrors Electron Promise.all per store) ──
+        await Future.wait(
+          stores.map((s) async {
+            storeCtx.switchStore(s.id);
+            final results = await Future.wait([
+              billing.listInvoices(),
+              estimates.list(),
+              creditNotes.list(),
+            ]);
+            _tagStore(results[0], s.name, rawInv);
+            _tagStore(results[1], s.name, rawEst);
+            _tagStore(results[2], s.name, rawCn);
+          }),
+        );
         storeCtx.clearStore();
       } else {
-        final ir = await billing.listInvoices();
-        final er = await estimates.list();
-        final cr = await creditNotes.list();
-        _tagStore(ir, _store.selectedStoreName ?? '', rawInv);
-        _tagStore(er, _store.selectedStoreName ?? '', rawEst);
-        _tagStore(cr, _store.selectedStoreName ?? '', rawCn);
+        // ── Single store — fetch all 3 in parallel ──
+        final results = await Future.wait([
+          billing.listInvoices(),
+          estimates.list(),
+          creditNotes.list(),
+        ]);
+        final storeName = _store.selectedStoreName ?? '';
+        _tagStore(results[0], storeName, rawInv);
+        _tagStore(results[1], storeName, rawEst);
+        _tagStore(results[2], storeName, rawCn);
       }
 
       final fetched = <Invoice>[];
@@ -193,7 +209,9 @@ class BillingController extends GetxController {
         allBills.assignAll(fetched);
         _lastFetched = DateTime.now();
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[BillingController] _fetchFromApi failed: $e');
+    }
     isLoading.value = false;
   }
 
@@ -290,7 +308,8 @@ class BillingController extends GetxController {
       final ledger = Get.find<LedgerService>();
 
       final payload = {
-        'customerId': customerId,
+        // Backend expects Long — parse from string if needed
+        'customerId': int.tryParse(customerId.toString()) ?? customerId,
         'customerName': customerName,
         'paymentMode': paymentMode,
         'paymentStatus': paymentStatus,
@@ -341,13 +360,16 @@ class BillingController extends GetxController {
               backendId: bid,
               changes: {'status': 'SOLD', 'quantity': 0},
             );
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('[BillingController] Inventory decrement failed: $e');
+          }
         }
       }
 
       _fetchFromApi();
       return true;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[BillingController] API call failed: $e');
       return false;
     }
   }
@@ -360,7 +382,8 @@ class BillingController extends GetxController {
       final r = await Get.find<EstimatesService>().create(payload);
       if (r.success) _fetchFromApi();
       return r.success;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[BillingController] API call failed: $e');
       return false;
     }
   }
@@ -385,13 +408,16 @@ class BillingController extends GetxController {
           try {
             final invCtrl = Get.find<InventoryController>();
             await invCtrl.restockItem(bid, (item['quantity'] as int?) ?? 1);
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('[BillingController] Inventory decrement failed: $e');
+          }
         }
       }
 
       _fetchFromApi();
       return true;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[BillingController] API call failed: $e');
       return false;
     }
   }
@@ -412,7 +438,8 @@ class BillingController extends GetxController {
       });
       if (r.success) _fetchFromApi();
       return r.success;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[BillingController] API call failed: $e');
       return false;
     }
   }
@@ -425,7 +452,8 @@ class BillingController extends GetxController {
       final r = await Get.find<EstimatesService>().convert(backendId);
       if (r.success) _fetchFromApi();
       return r.success;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[BillingController] API call failed: $e');
       return false;
     }
   }
@@ -440,7 +468,8 @@ class BillingController extends GetxController {
       });
       if (r.success) _fetchFromApi();
       return r.success;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[BillingController] API call failed: $e');
       return false;
     }
   }
@@ -558,6 +587,71 @@ class BillingController extends GetxController {
     paymentMode.value = 'Cash';
     discount.value = 0;
     oldGoldValue.value = 0;
+    splitPayments.assignAll([SplitPaymentEntry(mode: 'Cash', amount: 0)]);
+    billingStore.value = null;
+  }
+
+  // Pre-select an inventory item when navigating from inventory detail
+  // ── Shared rate/making helpers (same logic as InvoiceItemRow) ──
+  // mirrors Electron: state.goldRate[item.purity] || sellingPrice/weight
+  double _liveRateForItem(InventoryItem inv) {
+    try {
+      final rates = Get.find<RatesSchemesController>();
+      int r = 0;
+      if (inv.metal == 'Gold' ||
+          inv.metal == 'Rose Gold' ||
+          inv.metal == 'White Gold') {
+        switch (inv.purity) {
+          case '24K':
+            r = rates.metals[0].rate.value;
+            break;
+          case '22K':
+            r = rates.metals[1].rate.value;
+            break;
+          case '18K':
+            r = rates.metals[2].rate.value;
+            break;
+          case '14K':
+            r = rates.metals[3].rate.value;
+            break;
+          default:
+            r = rates.metals[1].rate.value;
+        }
+      } else if (inv.metal == 'Silver') {
+        r = rates.metals[4].rate.value;
+      } else if (inv.metal == 'Platinum') {
+        r = rates.metals[5].rate.value;
+      }
+      if (r > 0) return r.toDouble();
+    } catch (_) {}
+    return inv.netWeight > 0 ? inv.sellingPrice / inv.netWeight : 0.0;
+  }
+
+  // Inventory makingCharge = flat ₹, BillingItem.making = %
+  // makingPct = (flatMaking / metalValue) * 100
+  double _flatMakingToPct(double flatMaking, double weight, double rate) {
+    final metalValue = weight * rate;
+    if (metalValue <= 0 || flatMaking <= 0) return 0.0;
+    return double.parse(((flatMaking / metalValue) * 100).toStringAsFixed(2));
+  }
+
+  // Pre-select an inventory item when navigating from inventory detail
+  void preSelectItem(InventoryItem invItem) {
+    final rate = _liveRateForItem(invItem);
+    final weight = double.parse(invItem.netWeight.toStringAsFixed(3));
+    // makingCharge from inventory is flat ₹ — convert to % for BillingItem
+    final makingPct = _flatMakingToPct(invItem.makingCharge, weight, rate);
+
+    final item = BillingItem(
+      name: invItem.name,
+      inventoryId: invItem.id,
+      backendId: invItem.backendId,
+      weight: weight,
+      rate: rate,
+      making: makingPct,
+      purity: invItem.purity,
+    );
+    items.add(item);
   }
 
   // ── Local save (fallback when offline) ──
