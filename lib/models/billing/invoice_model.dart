@@ -13,7 +13,7 @@ class Invoice {
   String customerId;
   DateTime date;
   String paymentMode;
-  String status;        // Paid | Pending | Partial | Draft | Cancelled | Converted
+  String status; // Paid | Pending | Partial | Draft | Cancelled | Converted
   String? store;
   BillingType type;
 
@@ -58,46 +58,73 @@ class Invoice {
 
   String get typeLabel {
     switch (type) {
-      case BillingType.creditNote: return 'Credit Note';
-      case BillingType.estimate:   return 'Estimate';
-      default:                     return 'Invoice';
+      case BillingType.creditNote:
+        return 'Credit Note';
+      case BillingType.estimate:
+        return 'Estimate';
+      default:
+        return 'Invoice';
     }
   }
 
   String get formattedTotal {
     if (total >= 10000000) return '₹${(total / 10000000).toStringAsFixed(1)}Cr';
-    if (total >= 100000)   return '₹${(total / 100000).toStringAsFixed(1)}L';
-    if (total >= 1000)     return '₹${(total / 1000).toStringAsFixed(0)}K';
+    if (total >= 100000) return '₹${(total / 100000).toStringAsFixed(1)}L';
+    if (total >= 1000) return '₹${(total / 1000).toStringAsFixed(0)}K';
     return '₹$total';
   }
 
   String get formattedDate {
     try {
       final d = date;
-      const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const m = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       return '${d.day} ${m[d.month - 1]}';
-    } catch (_) { return ''; }
+    } catch (_) {
+      return '';
+    }
   }
 
   int get remaining => total - paidAmount;
 
   // Backend mapper (mirrors mapBackendInvoice in billing.js)
   factory Invoice.fromJson(Map<String, dynamic> j, {String storeName = ''}) {
-    const sm = <String,String>{
-      'PAID':'Paid','UNPAID':'Pending','PARTIAL':'Partial',
-      'CONFIRMED':'Pending','DRAFT':'Pending','CANCELLED':'Cancelled',
+    const sm = <String, String>{
+      'PAID': 'Paid',
+      'UNPAID': 'Pending',
+      'PARTIAL': 'Partial',
+      'CONFIRMED': 'Pending',
+      'DRAFT': 'Pending',
+      'CANCELLED': 'Cancelled',
     };
     final items = (j['items'] as List<dynamic>? ?? [])
-        .map((i) => BillingItem.fromJson(i as Map<String,dynamic>))
+        .map((i) => BillingItem.fromJson(i as Map<String, dynamic>))
         .toList();
     return Invoice(
       id: j['invoiceNumber']?.toString() ?? 'BIL${j['id']}',
       backendId: j['id'] as int?,
       customer: j['customer']?.toString() ?? 'Customer #${j['customerId']}',
       customerId: j['customerId']?.toString() ?? '',
-      date: j['date'] != null ? DateTime.tryParse(j['date'].toString()) ?? DateTime.now() : DateTime.now(),
+      date: j['date'] != null
+          ? DateTime.tryParse(j['date'].toString()) ?? DateTime.now()
+          : DateTime.now(),
       paymentMode: j['paymentMode']?.toString() ?? 'Cash',
-      status: sm[j['paymentStatus']?.toString()] ?? sm[j['status']?.toString()] ?? 'Pending',
+      status:
+          sm[j['paymentStatus']?.toString()] ??
+          sm[j['status']?.toString()] ??
+          'Pending',
       store: storeName,
       type: BillingType.invoice,
       subtotal: (j['subtotal'] ?? 0) as int,
@@ -112,14 +139,32 @@ class Invoice {
     );
   }
 
-  Invoice copyWith({String? status, int? paidAmount, List<PaymentSplit>? payments}) => Invoice(
-    id: id, backendId: backendId, customer: customer, customerId: customerId,
-    date: date, paymentMode: paymentMode,
-    subtotal: subtotal, gst: gst, discount: discount, roundOff: roundOff,
-    total: total, status: status ?? this.status, items: items, store: store,
-    type: type, paidAmount: paidAmount ?? this.paidAmount,
-    oldGoldAdjustment: oldGoldAdjustment, dueDate: dueDate,
-    digitalSignature: digitalSignature, notes: notes,
+  Invoice copyWith({
+    String? status,
+    int? paidAmount,
+    List<PaymentSplit>? payments,
+    String? store,
+  }) => Invoice(
+    id: id,
+    backendId: backendId,
+    customer: customer,
+    customerId: customerId,
+    date: date,
+    paymentMode: paymentMode,
+    subtotal: subtotal,
+    gst: gst,
+    discount: discount,
+    roundOff: roundOff,
+    total: total,
+    status: status ?? this.status,
+    items: items,
+    store: store ?? this.store,
+    type: type,
+    paidAmount: paidAmount ?? this.paidAmount,
+    oldGoldAdjustment: oldGoldAdjustment,
+    dueDate: dueDate,
+    digitalSignature: digitalSignature,
+    notes: notes,
     payments: payments ?? this.payments,
   );
 }

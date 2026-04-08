@@ -1,6 +1,8 @@
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/controllers/auth_controller.dart';
 import '../../../core/controllers/store_controller.dart';
@@ -47,6 +49,12 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
   DateTime? _hallmarkDate;
   bool _stoneExpanded = false; // collapsible stone section
   bool _isSubmitting = false;
+
+  // Image state — mirrors Electron inv-image-zone
+  Uint8List? _imageBytes;
+  String? _imageFileName;
+  String? _imageMimeType;
+  String? _uploadedImageUrl; // set after successful S3 upload
   // mirrors Electron: store selector for All Stores mode
   String? _selectedStoreName;
   int? _selectedStoreId;
@@ -234,6 +242,51 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
     });
   }
 
+  // mirrors Electron: imageZone click → file picker → showImagePreview()
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      final mimeType = picked.name.toLowerCase().endsWith('.png')
+          ? 'image/png'
+          : 'image/jpeg';
+      // mirrors Electron: file.size > 5MB check
+      if (bytes.lengthInBytes > 5 * 1024 * 1024) {
+        Get.snackbar(
+          'Image too large',
+          'Please select an image under 5MB',
+          backgroundColor: AppColors.bgCard,
+          colorText: AppColors.error,
+          snackPosition: SnackPosition.BOTTOM,
+          margin: const EdgeInsets.all(12),
+        );
+        return;
+      }
+      setState(() {
+        _imageBytes = bytes;
+        _imageFileName = picked.name;
+        _imageMimeType = mimeType;
+        _uploadedImageUrl = null; // reset until uploaded
+      });
+    } catch (e) {
+      debugPrint('[AddInventory] Image pick failed: $e');
+    }
+  }
+
+  void _removeImage() => setState(() {
+    _imageBytes = null;
+    _imageFileName = null;
+    _imageMimeType = null;
+    _uploadedImageUrl = null;
+  });
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSubmitting = true);
@@ -305,6 +358,23 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
         );
         if (metalMatch['id'] != null) metalId = metalMatch['id'] as int;
 
+        // ── Upload image first — mirrors Electron: upload then save item ──
+        if (_imageBytes != null && _imageFileName != null) {
+          final url = await _ctrl.uploadImage(
+            _imageBytes!,
+            _imageFileName!,
+            _imageMimeType ?? 'image/jpeg',
+          );
+          if (url != null) {
+            _uploadedImageUrl = url;
+            debugPrint('[AddInventory] Image uploaded: $url');
+          } else {
+            debugPrint(
+              '[AddInventory] Image upload failed, saving without image',
+            );
+          }
+        }
+
         final result = await _ctrl.createItem(
           name: item.name,
           description: item.description,
@@ -313,11 +383,11 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
           netWeight: item.netWeight,
           grossWeight: item.grossWeight,
           makingCharges: item.makingCharge,
-          stoneCharges:
-              double.tryParse(_stoneCharges.text) ?? 0, // ← live value
+          stoneCharges: double.tryParse(_stoneCharges.text) ?? 0,
           quantity: item.safeQty,
           hsnCode: '7113',
           barcode: item.barcode,
+          imageUrl: _uploadedImageUrl, // ← S3 URL or null
           targetStoreId: _selectedStoreId,
         );
         savedToBackend = result['success'] == true;
@@ -605,6 +675,118 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
             ),
 
             const SizedBox(height: 8),
+            _section('Item Photo', Icons.photo_camera_outlined),
+            // ── Image zone — mirrors Electron inv-image-zone ──
+            _imageBytes == null
+                ? GestureDetector(
+                    onTap: () => _showImageSourceSheet(),
+                    child: Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: AppColors.inputFill,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.border,
+                          style: BorderStyle.solid,
+                        ),
+                      ),
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.add_photo_alternate_outlined,
+                            color: AppColors.textMuted,
+                            size: 36,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Tap to add photo',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 13,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Camera or Gallery • Max 5MB',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.memory(
+                          _imageBytes!,
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: GestureDetector(
+                          onTap: _removeImage,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: GestureDetector(
+                          onTap: () => _showImageSourceSheet(),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.edit_outlined,
+                                  color: Colors.white,
+                                  size: 13,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Change',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+            const SizedBox(height: 8),
             _section('Notes', Icons.notes_outlined),
             Container(
               decoration: BoxDecoration(
@@ -688,6 +870,89 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
       ),
     );
   }
+
+  // Bottom sheet: Camera or Gallery — standard mobile pattern
+  void _showImageSourceSheet() {
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        decoration: const BoxDecoration(
+          color: AppColors.bgSecondary,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Add Photo',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _sourceBtn(Icons.camera_alt_outlined, 'Camera', () {
+                    Get.back();
+                    _pickImage(ImageSource.camera);
+                  }),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _sourceBtn(
+                    Icons.photo_library_outlined,
+                    'Gallery',
+                    () {
+                      Get.back();
+                      _pickImage(ImageSource.gallery);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sourceBtn(IconData icon, String label, VoidCallback onTap) =>
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            color: AppColors.bgCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: AppColors.goldPrimary, size: 28),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 
   // ── Price breakdown cell — mirrors Electron price preview grid ──
   Widget _priceCell(String label, String value) => Expanded(

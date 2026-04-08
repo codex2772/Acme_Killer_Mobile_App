@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../models/billing/billing_item_model.dart';
+import '../../../models/billing/billing_item_model.dart'
+    show BillingItem, MakingType;
 import '../../../models/inventory_model.dart';
 import '../controllers/billing_controller.dart';
 import '../../rates_schemes/controllers/rates_schemes_controller.dart';
@@ -89,15 +90,6 @@ class _InvoiceItemRowState extends State<InvoiceItemRow> {
     } catch (_) {}
     // Fallback: derive from sellingPrice / netWeight
     return inv.netWeight > 0 ? inv.sellingPrice / inv.netWeight : 0.0;
-  }
-
-  // Inventory makingCharge is flat ₹, BillingItem.making is %.
-  // mirrors Electron: makingInput.dataset.makingType = 'FLAT'
-  // Convert flat → % so BillingItem calculates correctly
-  double _flatToPercent(double flatMaking, double weight, double rate) {
-    final metalValue = weight * rate;
-    if (metalValue <= 0 || flatMaking <= 0) return 0.0;
-    return double.parse(((flatMaking / metalValue) * 100).toStringAsFixed(2));
   }
 
   @override
@@ -214,25 +206,21 @@ class _InvoiceItemRowState extends State<InvoiceItemRow> {
 
                       final currentItem = ctrl.items[widget.index];
 
-                      // ── Rate: live goldRate first, fallback to sellingPrice/weight ──
+                      // ── Rate: live goldRate first, fallback sellingPrice/weight ──
                       final rate = _getLiveRate(inv);
                       final weight = double.parse(
                         inv.netWeight.toStringAsFixed(3),
                       );
 
-                      // ── Making: inventory is flat ₹ → convert to % for BillingItem ──
-                      final makingPct = _flatToPercent(
-                        inv.makingCharge,
-                        weight,
-                        rate,
-                      );
-
+                      // ── Making: inventory stores flat ₹ — use FLAT type directly ──
+                      // mirrors Electron: makingInput.dataset.makingType = 'FLAT'
                       currentItem.name = inv.name;
                       currentItem.inventoryId = inv.id;
                       currentItem.backendId = inv.backendId;
                       currentItem.weight = weight;
                       currentItem.rate = rate;
-                      currentItem.making = makingPct;
+                      currentItem.making = inv.makingCharge; // flat ₹
+                      currentItem.makingType = MakingType.flat;
                       currentItem.purity = inv.purity;
 
                       _updateControllers(currentItem);
@@ -264,10 +252,16 @@ class _InvoiceItemRowState extends State<InvoiceItemRow> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: _numField('Making %', _makingCtrl, (v) {
-                    ctrl.items[widget.index].making =
-                        double.tryParse(v) ?? ctrl.items[widget.index].making;
-                    ctrl.recalculate();
+                  child: Obx(() {
+                    final type = ctrl.items[widget.index].makingType;
+                    final label = type == MakingType.flat
+                        ? 'Making (₹)'
+                        : 'Making %';
+                    return _numField(label, _makingCtrl, (v) {
+                      ctrl.items[widget.index].making =
+                          double.tryParse(v) ?? ctrl.items[widget.index].making;
+                      ctrl.recalculate();
+                    });
                   }),
                 ),
               ],

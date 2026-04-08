@@ -1,7 +1,8 @@
 import 'package:acme_killer_mobile_app/services/settings_service.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:get/get.dart';
-import '../../../models/billing/billing_item_model.dart';
+import '../../../models/billing/billing_item_model.dart'
+    show BillingItem, MakingType;
 import '../../../models/billing/invoice_model.dart';
 import '../../../models/billing/payment_split_model.dart';
 import '../../../models/inventory_model.dart';
@@ -275,11 +276,68 @@ class BillingController extends GetxController {
       paidAmount: paid.toInt(),
       dueDate: m['dueDate']?.toString(),
       notes: m['notes']?.toString() ?? '',
-      items: [],
+      // Map backend items — backend sends: { name, jewelryItemId, metalRate,
+      // metalValue, makingCharges, totalAmount, weight, purity, hsnCode }
+      items: _mapInvoiceItems(m['items']),
     );
   }
 
-  Future<void> refresh() => _fetchFromApi();
+  // mirrors Electron: inv.items.map(i => { name, rate, weight, purity, makingCharge })
+  List<BillingItem> _mapInvoiceItems(dynamic raw) {
+    if (raw == null || raw is! List || raw.isEmpty) return [];
+    return raw.map((i) {
+      final m = i as Map<String, dynamic>;
+      return BillingItem(
+        name: m['name']?.toString() ?? 'Jewelry Item',
+        inventoryId: m['jewelryItemId']?.toString() ?? '',
+        backendId: m['jewelryItemId'] as int?,
+        weight: (m['weight'] ?? m['metalValue'] ?? 0).toDouble(),
+        rate: (m['rate'] ?? m['metalRate'] ?? 0).toDouble(),
+        making: (m['makingCharge'] ?? m['makingCharges'] ?? 0).toDouble(),
+        makingType: MakingType.flat,
+        purity: m['purity']?.toString() ?? '',
+      );
+    }).toList();
+  }
+
+  // Fetch full invoice detail with items populated
+  // mirrors Electron: getInvoice(id) when opening invoice detail
+  Future<Invoice?> fetchInvoiceDetail(Invoice inv) async {
+    if (inv.backendId == null) return inv;
+    try {
+      final r = await Get.find<BillingService>().getInvoice(inv.backendId);
+      if (r.success && r.data is Map) {
+        final data = Map<String, dynamic>.from(r.data as Map);
+
+        // Backend single-invoice doesn't include _storeName (only list API does).
+        // Resolve store: backend storeName field → original inv.store → selectedStore
+        // mirrors Electron: inv.store || state.selectedStore || state.stores[0]
+        if (!data.containsKey('_storeName') ||
+            (data['_storeName'] as String?)?.isEmpty == true) {
+          final backendStoreName =
+              data['storeName']?.toString() ??
+              data['store']?.toString() ??
+              inv
+                  .store // preserve from list fetch
+                  ??
+              _store.selectedStoreName ??
+              (_store.stores.isNotEmpty ? _store.stores.first.name : '');
+          data['_storeName'] = backendStoreName;
+        }
+
+        final full = _mapInvoice(data, inv.type);
+        final idx = allBills.indexWhere((b) => b.backendId == inv.backendId);
+        if (idx != -1) {
+          allBills[idx] = full;
+          allBills.refresh();
+        }
+        return full;
+      }
+    } catch (e) {
+      debugPrint('[BillingController] fetchInvoiceDetail failed: $e');
+    }
+    return inv;
+  }
 
   Future<void> refreshIfStale() async {
     if (isStale && !isLoading.value) await _fetchFromApi();
@@ -592,7 +650,6 @@ class BillingController extends GetxController {
   }
 
   // Pre-select an inventory item when navigating from inventory detail
-  // ── Shared rate/making helpers (same logic as InvoiceItemRow) ──
   // mirrors Electron: state.goldRate[item.purity] || sellingPrice/weight
   double _liveRateForItem(InventoryItem inv) {
     try {
@@ -627,20 +684,11 @@ class BillingController extends GetxController {
     return inv.netWeight > 0 ? inv.sellingPrice / inv.netWeight : 0.0;
   }
 
-  // Inventory makingCharge = flat ₹, BillingItem.making = %
-  // makingPct = (flatMaking / metalValue) * 100
-  double _flatMakingToPct(double flatMaking, double weight, double rate) {
-    final metalValue = weight * rate;
-    if (metalValue <= 0 || flatMaking <= 0) return 0.0;
-    return double.parse(((flatMaking / metalValue) * 100).toStringAsFixed(2));
-  }
-
   // Pre-select an inventory item when navigating from inventory detail
+  // mirrors Electron: makingInput.dataset.makingType = 'FLAT'
   void preSelectItem(InventoryItem invItem) {
     final rate = _liveRateForItem(invItem);
     final weight = double.parse(invItem.netWeight.toStringAsFixed(3));
-    // makingCharge from inventory is flat ₹ — convert to % for BillingItem
-    final makingPct = _flatMakingToPct(invItem.makingCharge, weight, rate);
 
     final item = BillingItem(
       name: invItem.name,
@@ -648,7 +696,8 @@ class BillingController extends GetxController {
       backendId: invItem.backendId,
       weight: weight,
       rate: rate,
-      making: makingPct,
+      making: invItem.makingCharge, // flat ₹ — stored as-is, makingType=flat
+      makingType: MakingType.flat,
       purity: invItem.purity,
     );
     items.add(item);

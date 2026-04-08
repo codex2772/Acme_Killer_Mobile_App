@@ -1,3 +1,4 @@
+import 'package:acme_killer_mobile_app/models/billing/billing_item_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
@@ -84,8 +85,14 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         'weight': double.parse(item.weight.toStringAsFixed(3)),
         'rate': double.parse(item.rate.toStringAsFixed(2)),
         'purity': item.purity,
-        'makingCharge': double.parse(item.making.toStringAsFixed(2)),
-        'makingChargeType': 'PERCENTAGE',
+        // mirrors Electron: makingType FLAT = raw ₹, PERCENTAGE = % of metalValue
+        'makingCharge': item.makingType == MakingType.flat
+            ? item
+                  .making // already flat ₹
+            : item.makingValue.toDouble(), // convert % → flat ₹ for backend
+        'makingChargeType': item.makingType == MakingType.flat
+            ? 'FLAT'
+            : 'PERCENTAGE',
         'amount': item.total,
         'hsn': '7113',
         'backendId': backendIntId,
