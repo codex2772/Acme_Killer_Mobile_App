@@ -5,34 +5,34 @@ import 'storage_service.dart';
 
 // ── Permission map: Backend enum → Flutter local id ──────────────────────────
 const Map<String, String> kPermissionMap = {
-  'VIEW_INVENTORY':   'inventory_view',
+  'VIEW_INVENTORY': 'inventory_view',
   'MANAGE_INVENTORY': 'inventory_manage',
-  'VIEW_CUSTOMERS':   'customer_view',
+  'VIEW_CUSTOMERS': 'customer_view',
   'MANAGE_CUSTOMERS': 'customer_manage',
-  'VIEW_BILLING':     'billing_view',
-  'MANAGE_BILLING':   'billing_create',
-  'VIEW_ACCOUNTS':    'accounts_view',
-  'MANAGE_ACCOUNTS':  'accounts_manage',
-  'VIEW_REPORTS':     'reports_view',
-  'MANAGE_OLD_GOLD':  'old_gold_manage',
-  'MANAGE_SCHEMES':   'schemes_manage',
-  'MANAGE_RATES':     'rates_manage',
-  'MANAGE_STAFF':     'staff_manage',
+  'VIEW_BILLING': 'billing_view',
+  'MANAGE_BILLING': 'billing_create',
+  'VIEW_ACCOUNTS': 'accounts_view',
+  'MANAGE_ACCOUNTS': 'accounts_manage',
+  'VIEW_REPORTS': 'reports_view',
+  'MANAGE_OLD_GOLD': 'old_gold_manage',
+  'MANAGE_SCHEMES': 'schemes_manage',
+  'MANAGE_RATES': 'rates_manage',
+  'MANAGE_STAFF': 'staff_manage',
 };
 
 const Map<String, String?> kModulePerms = {
-  'inventory':  'inventory_view',
-  'customers':  'customer_view',
-  'billing':    'billing_view',
-  'accounts':   'accounts_view',
-  'reports':    'reports_view',
-  'staff':      'staff_manage',
+  'inventory': 'inventory_view',
+  'customers': 'customer_view',
+  'billing': 'billing_view',
+  'accounts': 'accounts_view',
+  'reports': 'reports_view',
+  'staff': 'staff_manage',
   'todayRates': 'rates_manage',
-  'oldGold':    'old_gold_manage',
-  'schemes':    'schemes_manage',
-  'enquiries':  null,
-  'settings':   null,
-  'dashboard':  null,
+  'oldGold': 'old_gold_manage',
+  'schemes': 'schemes_manage',
+  'enquiries': null,
+  'settings': null,
+  'dashboard': null,
 };
 
 // ── Backend URL — MUST match Electron api.js BASE_URL exactly ─────────────
@@ -62,11 +62,13 @@ class AuthService extends GetxService {
   //   6. On network error (no connection) → fallback to demo mode
   Future<AuthResult> login(String mobile, String password) async {
     try {
-      final response = await http.post(
-        Uri.parse('$kApiBaseUrl/api/auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'mobile': mobile, 'password': password}),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .post(
+            Uri.parse('$kApiBaseUrl/api/auth/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'mobile': mobile, 'password': password}),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         return _handleLoginResponse(
@@ -81,7 +83,8 @@ class AuthService extends GetxService {
       String errorMsg = 'Login failed (${response.statusCode})';
       try {
         final errBody = jsonDecode(response.body) as Map<String, dynamic>;
-        errorMsg = errBody['message']?.toString() ??
+        errorMsg =
+            errBody['message']?.toString() ??
             errBody['error']?.toString() ??
             errorMsg;
       } catch (_) {}
@@ -98,11 +101,13 @@ class AuthService extends GetxService {
     //   const tokenSource = result.data.data && result.data.data.token
     //     ? result.data.data : result.data;
     final src = (data['data'] is Map && (data['data'] as Map)['token'] != null)
-        ? data['data'] as Map<String, dynamic> : data;
+        ? data['data'] as Map<String, dynamic>
+        : data;
 
     // Handle various token key names from backend
     // mirrors: at = tokenSource.token || tokenSource.accessToken || ...
-    final at = src['token'] ?? src['accessToken'] ?? src['access_token'] ?? src['jwt'];
+    final at =
+        src['token'] ?? src['accessToken'] ?? src['access_token'] ?? src['jwt'];
     final rt = src['refreshToken'] ?? src['refresh_token'];
 
     if (at == null) {
@@ -110,7 +115,7 @@ class AuthService extends GetxService {
       return AuthResult.fail('Login succeeded but no access token received');
     }
 
-    _accessToken  = at.toString();
+    _accessToken = at.toString();
     _refreshToken = rt?.toString();
 
     final role = (src['role'] ?? 'staff').toString().toLowerCase();
@@ -120,7 +125,7 @@ class AuthService extends GetxService {
     final stores = (src['stores'] as List<dynamic>? ?? []).map((s) {
       if (s is Map) {
         return StoreInfo(
-          id:   s['id'] ?? 0,
+          id: s['id'] ?? 0,
           name: s['name']?.toString() ?? '',
           enabledModules: s['enabledModules'] != null
               ? List<String>.from(s['enabledModules'])
@@ -133,17 +138,20 @@ class AuthService extends GetxService {
     final perms = role == 'owner'
         ? kPermissionMap.values.toList()
         : (src['permissions'] as List<dynamic>? ?? [])
-            .map((p) => kPermissionMap[p.toString()] ?? p.toString().toLowerCase())
-            .toList();
+              .map(
+                (p) =>
+                    kPermissionMap[p.toString()] ?? p.toString().toLowerCase(),
+              )
+              .toList();
 
     final user = UserSession(
-      id:                  (src['id'] ?? src['userId'] ?? mobile).toString(),
-      name:                (src['userName'] ?? src['name'] ?? mobile).toString(),
-      mobile:              mobile,
-      role:                role,
-      stores:              stores,
-      permissions:         perms,
-      isOnline:            true,
+      id: (src['id'] ?? src['userId'] ?? mobile).toString(),
+      name: (src['userName'] ?? src['name'] ?? mobile).toString(),
+      mobile: mobile,
+      role: role,
+      stores: stores,
+      permissions: perms,
+      isOnline: true,
       forcePasswordChange: src['forcePasswordChange'] == true,
     );
 
@@ -152,22 +160,57 @@ class AuthService extends GetxService {
   }
 
   AuthResult _demoLogin(String mobile, String _) {
-    final isOwner = mobile.toUpperCase() == 'OWNER001' || mobile.toLowerCase() == 'owner';
+    final isOwner =
+        mobile.toUpperCase() == 'OWNER001' || mobile.toLowerCase() == 'owner';
     final user = UserSession(
-      id: mobile, name: isOwner ? 'Store Owner' : 'Staff Member',
-      mobile: mobile, role: isOwner ? 'owner' : 'staff',
+      id: mobile,
+      name: isOwner ? 'Store Owner' : 'Staff Member',
+      mobile: mobile,
+      role: isOwner ? 'owner' : 'staff',
       stores: [
-        StoreInfo(id: 1, name: 'Rajmahal Jewellers - Main',
-            enabledModules: ['DASHBOARD','INVENTORY','BILLING','CUSTOMERS','ACCOUNTS','RATES','SCHEMES','REPORTS','SETTINGS']),
-        StoreInfo(id: 2, name: 'Rajmahal Jewellers - Mall Road',
-            enabledModules: ['DASHBOARD','INVENTORY','BILLING','CUSTOMERS','ACCOUNTS','RATES']),
-        StoreInfo(id: 3, name: 'Rajmahal Jewellers - City Center',
-            enabledModules: ['DASHBOARD','INVENTORY','BILLING','CUSTOMERS']),
+        StoreInfo(
+          id: 1,
+          name: 'Rajmahal Jewellers - Main',
+          enabledModules: [
+            'DASHBOARD',
+            'INVENTORY',
+            'BILLING',
+            'CUSTOMERS',
+            'ACCOUNTS',
+            'RATES',
+            'SCHEMES',
+            'REPORTS',
+            'SETTINGS',
+          ],
+        ),
+        StoreInfo(
+          id: 2,
+          name: 'Rajmahal Jewellers - Mall Road',
+          enabledModules: [
+            'DASHBOARD',
+            'INVENTORY',
+            'BILLING',
+            'CUSTOMERS',
+            'ACCOUNTS',
+            'RATES',
+          ],
+        ),
+        StoreInfo(
+          id: 3,
+          name: 'Rajmahal Jewellers - City Center',
+          enabledModules: ['DASHBOARD', 'INVENTORY', 'BILLING', 'CUSTOMERS'],
+        ),
       ],
       permissions: isOwner
           ? kPermissionMap.values.toList()
-          : ['inventory_view', 'customer_view', 'billing_view', 'billing_create'],
-      isOnline: false, forcePasswordChange: false,
+          : [
+              'inventory_view',
+              'customer_view',
+              'billing_view',
+              'billing_create',
+            ],
+      isOnline: false,
+      forcePasswordChange: false,
     );
     _save(user, access: 'demo', refresh: 'demo');
     return AuthResult.ok(user, isDemo: true);
@@ -183,12 +226,12 @@ class AuthService extends GetxService {
     final saved = await _storage.getSession();
     if (saved == null) return AuthResult.fail('No session');
 
-    final savedAccess  = await _storage.getAccessToken();
+    final savedAccess = await _storage.getAccessToken();
     final savedRefresh = await _storage.getRefreshToken();
 
     // Demo session — restore with demo tokens (no API calls possible)
     if (savedRefresh == null || savedRefresh == 'demo') {
-      _accessToken  = savedAccess;
+      _accessToken = savedAccess;
       _refreshToken = savedRefresh;
       return AuthResult.ok(saved, isDemo: savedRefresh == 'demo');
     }
@@ -196,20 +239,28 @@ class AuthService extends GetxService {
     // Real session — try to refresh the access token
     // Mirrors Electron: refreshTokenValue = storedRefresh; refreshAccessToken();
     try {
-      final r = await http.post(
-        Uri.parse('$kApiBaseUrl/api/auth/refresh-token'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'refreshToken': savedRefresh}),
-      ).timeout(const Duration(seconds: 8));
+      final r = await http
+          .post(
+            Uri.parse('$kApiBaseUrl/api/auth/refresh-token'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'refreshToken': savedRefresh}),
+          )
+          .timeout(const Duration(seconds: 8));
 
       if (r.statusCode == 200) {
-        final d   = jsonDecode(r.body) as Map<String, dynamic>;
+        final d = jsonDecode(r.body) as Map<String, dynamic>;
         final src = (d['data'] is Map && (d['data'] as Map)['token'] != null)
-            ? d['data'] as Map<String, dynamic> : d;
-        final at    = src['token'] ?? src['accessToken'] ?? src['access_token'] ?? src['jwt'];
-        final newRt = src['refreshToken'] ?? src['refresh_token'] ?? savedRefresh;
+            ? d['data'] as Map<String, dynamic>
+            : d;
+        final at =
+            src['token'] ??
+            src['accessToken'] ??
+            src['access_token'] ??
+            src['jwt'];
+        final newRt =
+            src['refreshToken'] ?? src['refresh_token'] ?? savedRefresh;
         if (at != null) {
-          _accessToken  = at.toString();
+          _accessToken = at.toString();
           _refreshToken = newRt.toString();
           await _storage.saveAccessToken(_accessToken!);
           await _storage.saveRefreshToken(_refreshToken!);
@@ -220,7 +271,7 @@ class AuthService extends GetxService {
       // Network error during refresh — try using the saved access token
       // (it may still be valid if not expired)
       if (savedAccess != null && savedAccess != 'demo') {
-        _accessToken  = savedAccess;
+        _accessToken = savedAccess;
         _refreshToken = savedRefresh;
         return AuthResult.ok(saved);
       }
@@ -235,26 +286,36 @@ class AuthService extends GetxService {
       return AuthResult.fail('Not available in demo mode');
     }
     try {
-      final r = await http.post(
-        Uri.parse('$kApiBaseUrl/api/auth/change-password'),
-        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $_accessToken'},
-        body: jsonEncode({'currentPassword': current, 'newPassword': newPass}),
-      ).timeout(const Duration(seconds: 10));
+      final r = await http
+          .post(
+            Uri.parse('$kApiBaseUrl/api/auth/change-password'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $_accessToken',
+            },
+            body: jsonEncode({
+              'currentPassword': current,
+              'newPassword': newPass,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
       if (r.statusCode == 200) return AuthResult.msg('Password changed!');
       return AuthResult.fail('Current password is incorrect');
-    } catch (_) { return AuthResult.fail('Network error. Try again.'); }
+    } catch (_) {
+      return AuthResult.fail('Network error. Try again.');
+    }
   }
 
   // ── LOGOUT ────────────────────────────────────────────────────────────────
   Future<void> logout() async {
-    _accessToken  = null;
+    _accessToken = null;
     _refreshToken = null;
     await _storage.clearSession();
   }
 
   void _save(UserSession u, {String? access, String? refresh}) {
     _storage.saveSession(u);
-    if (access  != null) _storage.saveAccessToken(access);
+    if (access != null) _storage.saveAccessToken(access);
     if (refresh != null) _storage.saveRefreshToken(refresh);
   }
 }
@@ -263,9 +324,18 @@ class AuthService extends GetxService {
 // AuthResult
 // ════════════════════════════════════════════════════════════════════════════
 class AuthResult {
-  final bool success; final UserSession? user; final String? error;
-  final String? message; final bool isDemo;
-  const AuthResult._({required this.success, this.user, this.error, this.message, this.isDemo = false});
+  final bool success;
+  final UserSession? user;
+  final String? error;
+  final String? message;
+  final bool isDemo;
+  const AuthResult._({
+    required this.success,
+    this.user,
+    this.error,
+    this.message,
+    this.isDemo = false,
+  });
   factory AuthResult.ok(UserSession u, {bool isDemo = false}) =>
       AuthResult._(success: true, user: u, isDemo: isDemo);
   factory AuthResult.msg(String m) => AuthResult._(success: true, message: m);
@@ -282,9 +352,14 @@ class UserSession {
   final bool isOnline, forcePasswordChange;
 
   const UserSession({
-    required this.id, required this.name, required this.mobile, required this.role,
-    required this.stores, required this.permissions,
-    required this.isOnline, required this.forcePasswordChange,
+    required this.id,
+    required this.name,
+    required this.mobile,
+    required this.role,
+    required this.stores,
+    required this.permissions,
+    required this.isOnline,
+    required this.forcePasswordChange,
   });
 
   String get initials {
@@ -292,6 +367,7 @@ class UserSession {
     if (p.length >= 2) return '${p[0][0]}${p[1][0]}'.toUpperCase();
     return name.isNotEmpty ? name[0].toUpperCase() : 'U';
   }
+
   String get roleDisplay =>
       role.isNotEmpty ? '${role[0].toUpperCase()}${role.substring(1)}' : '';
 
@@ -304,19 +380,27 @@ class UserSession {
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id, 'name': name, 'mobile': mobile, 'role': role,
+    'id': id,
+    'name': name,
+    'mobile': mobile,
+    'role': role,
     'stores': stores.map((s) => s.toJson()).toList(),
-    'permissions': permissions, 'isOnline': isOnline,
+    'permissions': permissions,
+    'isOnline': isOnline,
     'forcePasswordChange': forcePasswordChange,
   };
 
   factory UserSession.fromJson(Map<String, dynamic> j) => UserSession(
-    id: j['id']?.toString() ?? '', name: j['name']?.toString() ?? '',
-    mobile: j['mobile']?.toString() ?? '', role: j['role']?.toString() ?? 'staff',
+    id: j['id']?.toString() ?? '',
+    name: j['name']?.toString() ?? '',
+    mobile: j['mobile']?.toString() ?? '',
+    role: j['role']?.toString() ?? 'staff',
     stores: (j['stores'] as List<dynamic>? ?? [])
-        .map((s) => StoreInfo.fromJson(s as Map<String, dynamic>)).toList(),
+        .map((s) => StoreInfo.fromJson(s as Map<String, dynamic>))
+        .toList(),
     permissions: List<String>.from(j['permissions'] ?? []),
-    isOnline: j['isOnline'] == true, forcePasswordChange: j['forcePasswordChange'] == true,
+    isOnline: j['isOnline'] == true,
+    forcePasswordChange: j['forcePasswordChange'] == true,
   );
 }
 
@@ -325,23 +409,25 @@ class UserSession {
 // mirrors Electron: stores[].enabledModules = ['DASHBOARD','BILLING',...]
 // ════════════════════════════════════════════════════════════════════════════
 class StoreInfo {
-  final int    id;
+  final int id;
   final String name;
   // NEW: list of enabled module codes for this store
   final List<String>? enabledModules;
 
   const StoreInfo({required this.id, required this.name, this.enabledModules});
 
-  String get shortName =>
-      name.replaceAll('Rajmahal Jewellers - ', '').replaceAll('Rajmahal - ', '');
+  String get shortName => name
+      .replaceAll('Rajmahal Jewellers - ', '')
+      .replaceAll('Rajmahal - ', '');
 
   Map<String, dynamic> toJson() => {
-    'id': id, 'name': name,
+    'id': id,
+    'name': name,
     if (enabledModules != null) 'enabledModules': enabledModules,
   };
 
   factory StoreInfo.fromJson(Map<String, dynamic> j) => StoreInfo(
-    id:   j['id'] ?? 0,
+    id: j['id'] ?? 0,
     name: j['name']?.toString() ?? '',
     enabledModules: j['enabledModules'] != null
         ? List<String>.from(j['enabledModules'])
