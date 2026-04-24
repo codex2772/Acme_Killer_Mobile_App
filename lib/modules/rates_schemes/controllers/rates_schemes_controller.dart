@@ -264,6 +264,10 @@ class RatesSchemesController extends GetxController {
   final RxBool isLoadingRates = false.obs;
   final RxBool isFetchingLive = false.obs;
 
+  // ── Stores raw live rate data for the dialog to read ──
+  // mirrors Electron: live = result.data in btn-fetch-live-rates handler
+  Map<String, dynamic>? liveRatesData;
+
   @override
   void onInit() {
     super.onInit();
@@ -304,6 +308,13 @@ class RatesSchemesController extends GetxController {
           metals[4].rate.value = (d['silver'] as num).toInt();
         if (d['platinum'] != null)
           metals[5].rate.value = (d['platinum'] as num).toInt();
+        // ── Previously missing — caused new values not showing after save ──
+        if (d['rhodium'] != null)
+          metals[6].rate.value = (d['rhodium'] as num).toInt();
+        if (d['roseGold18k'] != null)
+          metals[7].rate.value = (d['roseGold18k'] as num).toInt();
+        if (d['whiteGold18k'] != null)
+          metals[8].rate.value = (d['whiteGold18k'] as num).toInt();
       }
 
       // History — compute live change strings from yesterday vs today
@@ -362,12 +373,18 @@ class RatesSchemesController extends GetxController {
       final result = await Get.find<RatesService>().fetchLive();
       if (result.success && result.data is Map) {
         final d = result.data as Map<String, dynamic>;
+        // Store raw data so the live-rates dialog can read it
+        liveRatesData = d;
         updateRates(
           g24k: (d['gold24k'] as num?)?.toInt(),
           g22k: (d['gold22k'] as num?)?.toInt(),
           g18k: (d['gold18k'] as num?)?.toInt(),
+          g14k: (d['gold14k'] as num?)?.toInt(),
           silver: (d['silver'] as num?)?.toInt(),
           platinum: (d['platinum'] as num?)?.toInt(),
+          // rhodium has no live source — keep existing value (same as Electron)
+          roseGold18k: (d['roseGold18k'] as num?)?.toInt(),
+          whiteGold18k: (d['whiteGold18k'] as num?)?.toInt(),
         );
         isFetchingLive.value = false;
         return true;
@@ -383,18 +400,32 @@ class RatesSchemesController extends GetxController {
     int? g22k,
     int? g24k,
     int? g18k,
+    int? g14k,
     int? silver,
     int? platinum,
+    int? rhodium,
+    int? roseGold18k,
+    int? whiteGold18k,
   }) {
     if (g24k != null) metals[0].rate.value = g24k;
     if (g22k != null) metals[1].rate.value = g22k;
     if (g18k != null) metals[2].rate.value = g18k;
+    if (g14k != null) metals[3].rate.value = g14k;
     if (silver != null) metals[4].rate.value = silver;
     if (platinum != null) metals[5].rate.value = platinum;
+    if (rhodium != null) metals[6].rate.value = rhodium;
+    if (roseGold18k != null && metals.length > 7)
+      metals[7].rate.value = roseGold18k;
+    if (whiteGold18k != null && metals.length > 8)
+      metals[8].rate.value = whiteGold18k;
   }
 
   Future<bool> saveRates() async {
     try {
+      // ── Send ALL 9 fields the backend requires (non-nullable columns) ──
+      // mirrors Electron rates.update({ gold24k, gold22k, gold18k, gold14k,
+      //   silver, platinum, rhodium, roseGold18k, whiteGold18k })
+      // Missing any of these → 500 "Column 'rhodium' cannot be null"
       final r = await Get.find<RatesService>().update({
         'gold24k': metals[0].rate.value,
         'gold22k': metals[1].rate.value,
@@ -402,10 +433,13 @@ class RatesSchemesController extends GetxController {
         'gold14k': metals[3].rate.value,
         'silver': metals[4].rate.value,
         'platinum': metals[5].rate.value,
+        'rhodium': metals[6].rate.value,
+        'roseGold18k': metals[7].rate.value,
+        'whiteGold18k': metals[8].rate.value,
       });
       return r.success;
     } catch (e) {
-      debugPrint('[RatesController] API call failed: $e');
+      debugPrint('[RatesController] saveRates failed: $e');
       return false;
     }
   }

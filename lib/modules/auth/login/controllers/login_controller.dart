@@ -26,12 +26,12 @@ import '../../../../routes/app_routes.dart';
 class LoginController extends GetxController {
   final AuthController _auth = Get.find<AuthController>();
 
-  final TextEditingController mobileController   = TextEditingController();
+  final TextEditingController mobileController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
-  final RxBool   isLoading       = false.obs;
-  final RxBool   obscurePassword = true.obs;
-  final RxString errorMessage    = ''.obs;
+  final RxBool isLoading = false.obs;
+  final RxBool obscurePassword = true.obs;
+  final RxString errorMessage = ''.obs;
 
   String selectedRole = 'staff';
 
@@ -52,10 +52,10 @@ class LoginController extends GetxController {
   }
 
   void togglePassword() => obscurePassword.value = !obscurePassword.value;
-  void clearError()     => errorMessage.value = '';
+  void clearError() => errorMessage.value = '';
 
   Future<void> login() async {
-    final mobile   = mobileController.text.trim();
+    final mobile = mobileController.text.trim();
     final password = passwordController.text.trim();
 
     if (mobile.isEmpty) {
@@ -68,7 +68,7 @@ class LoginController extends GetxController {
     }
 
     errorMessage.value = '';
-    isLoading.value    = true;
+    isLoading.value = true;
 
     final result = await _auth.login(mobile, password);
     isLoading.value = false;
@@ -76,17 +76,7 @@ class LoginController extends GetxController {
     if (result.success) {
       // ── Demo mode feedback ──
       // mirrors Electron: if (result.demo) { showToast('Signed in with demo data...', 'info') }
-      if (_auth.isDemo.value) {
-        Get.snackbar(
-          'Demo Mode',
-          'Backend unreachable — showing sample data',
-          backgroundColor: AppColors.bgCard,
-          colorText: AppColors.warning,
-          snackPosition: SnackPosition.BOTTOM,
-          margin: const EdgeInsets.all(12),
-          duration: const Duration(seconds: 3),
-        );
-      } else {
+      {
         // ── Welcome toast (mirrors Electron: showToast(`Welcome, ${name}!`)) ──
         Get.snackbar(
           'Welcome back!',
@@ -97,20 +87,21 @@ class LoginController extends GetxController {
           margin: const EdgeInsets.all(12),
           duration: const Duration(seconds: 2),
         );
-      }
 
-      // ── Force password change ──
-      // Electron: navigate to dashboard, then show modal
-      // Flutter: navigate to change-password screen (same net effect)
-      if (_auth.forcePasswordChange) {
-        Get.offAllNamed(AppRoutes.changePassword);
-        return;
-      }
+        // ── Force password change ──
+        // Electron: navigate to dashboard, then show modal
+        // Flutter: navigate to change-password screen (same net effect)
+        if (_auth.forcePasswordChange) {
+          Get.offAllNamed(AppRoutes.changePassword);
+          return;
+        }
 
-      Get.offAllNamed(AppRoutes.dashboard);
+        Get.offAllNamed(AppRoutes.dashboard);
+      }
     } else {
       // ── Error (mirrors Electron: errorDiv.textContent = result.error) ──
-      errorMessage.value = result.error ?? 'Invalid credentials. Please try again.';
+      errorMessage.value =
+          result.error ?? 'Invalid credentials. Please try again.';
     }
   }
 }

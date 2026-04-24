@@ -282,63 +282,6 @@ class LoginScreen extends GetView<LoginController> {
                     ),
 
                     const SizedBox(height: 18),
-
-                    // ── Demo tip ──
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgCard,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.info_outline_rounded,
-                            color: AppColors.goldPrimary.withOpacity(0.8),
-                            size: 16,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: RichText(
-                              text: TextSpan(
-                                style: const TextStyle(
-                                  color: AppColors.textMuted,
-                                  fontSize: 12,
-                                  height: 1.5,
-                                ),
-                                children: [
-                                  const TextSpan(text: 'Demo: use '),
-                                  TextSpan(
-                                    text: isOwner ? 'OWNER001' : 'any ID',
-                                    style: const TextStyle(
-                                      color: AppColors.textSecondary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const TextSpan(
-                                    text: ' + any password when offline.',
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 22),
-                    // mirrors Electron: no "contact support" link — removed
-                    const Center(
-                      child: Text(
-                        'Backend unreachable? App works in demo mode.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),

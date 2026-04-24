@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/controllers/auth_controller.dart';
 import '../../../modules/customers/controllers/customer_controller.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/staff_service.dart';
 import '../controllers/billing_controller.dart';
 import '../widgets/billing_summary.dart';
 import '../widgets/invoice_item_row.dart';
@@ -24,12 +25,45 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   final RxString _invoiceType = 'tax'.obs;
   final RxBool _isSubmitting = false.obs;
 
+  // Digital signature — mirrors Electron: prefetch staff → dropdown
+  final RxList<String> _staffNames = <String>[].obs;
+  final RxString _selectedSignature = ''.obs;
+
   @override
   void initState() {
     super.initState();
     controller = Get.find<BillingController>();
     _custCtrl = Get.find<CustomerController>();
     controller.clearBuilder();
+    _prefetchStaff();
+  }
+
+  // mirrors Electron: pre-fetch staff for digital signature dropdown
+  Future<void> _prefetchStaff() async {
+    try {
+      final auth = Get.find<AuthController>();
+      final svc = Get.find<StaffService>();
+      final r = await svc.list();
+      final names = <String>[];
+      if (r.success && r.data is List) {
+        for (final s in (r.data as List)) {
+          final n = (s as Map<String, dynamic>)['name']?.toString() ?? '';
+          if (n.isNotEmpty) names.add(n);
+        }
+      }
+      final userName = auth.userName;
+      if (userName.isNotEmpty && !names.contains(userName)) {
+        names.insert(0, userName);
+      }
+      _staffNames.assignAll(names.isNotEmpty ? names : (userName.isNotEmpty ? [userName] : []));
+      if (userName.isNotEmpty) _selectedSignature.value = userName;
+      else if (names.isNotEmpty) _selectedSignature.value = names.first;
+    } catch (_) {
+      try {
+        final n = Get.find<AuthController>().userName;
+        if (n.isNotEmpty) { _staffNames.assignAll([n]); _selectedSignature.value = n; }
+      } catch (_) {}
+    }
   }
 
   @override
@@ -77,41 +111,48 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         payModeMap[splits.isNotEmpty ? splits[0].mode : 'Cash'] ?? 'CASH';
 
     final lineItems = controller.items.map((item) {
-      final backendIntId =
-          item.backendId; // int? — set when inventory item selected
+      final backendIntId = item.backendId;
       return {
         'name': item.name,
         'jewelryItemId': backendIntId,
         'weight': double.parse(item.weight.toStringAsFixed(3)),
         'rate': double.parse(item.rate.toStringAsFixed(2)),
         'purity': item.purity,
-        // mirrors Electron: makingType FLAT = raw ₹, PERCENTAGE = % of metalValue
         'makingCharge': item.makingType == MakingType.flat
-            ? item
-                  .making // already flat ₹
-            : item.makingValue.toDouble(), // convert % → flat ₹ for backend
-        'makingChargeType': item.makingType == MakingType.flat
-            ? 'FLAT'
-            : 'PERCENTAGE',
+            ? item.making
+            : item.makingValue.toDouble(),
+        'makingChargeType': item.makingType == MakingType.flat ? 'FLAT' : 'PERCENTAGE',
         'amount': item.total,
         'hsn': '7113',
         'backendId': backendIntId,
       };
     }).toList();
 
-    final auth = Get.find<AuthController>();
-    if (!auth.isDemo.value) {
+    // Build splitPayments data with reference — mirrors Electron collectedSplits
+    final splitPaymentsData = splits.map((s) => {
+      'mode': s.mode,
+      'amount': s.amount,
+      'reference': s.reference,
+    }).toList();
+
+    {
       final ok = await controller.createInvoiceViaApi(
         customerId: controller.customerId.value,
         customerName: controller.customer.value,
+        subtotal: controller.subtotal,
         total: controller.grandTotal,
         gstAmount: controller.gstAmount,
         discountAmount: controller.discount.value,
         paymentMode: primaryMode,
         paymentStatus: paymentStatus,
         lineItems: lineItems,
+        splitPaymentsData: splitPaymentsData,
+        paidAmount: totalPaid,
+        gstRate: controller.gstRate.value,
         dueDate: _dueDateCtrl.text.isEmpty ? null : _dueDateCtrl.text,
         notes: _notesCtrl.text,
+        digitalSignature: _selectedSignature.value.isNotEmpty ? _selectedSignature.value : null,
+        oldGoldAdjustment: controller.oldGoldValue.value,
       );
       _isSubmitting.value = false;
       if (ok) {
@@ -381,6 +422,58 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             Expanded(child: _datePicker('Due Date', _dueDateCtrl)),
           ],
         ),
+        const SizedBox(height: 12),
+        // Digital Signature dropdown — mirrors Electron inv-digital-signature
+        Obx(() {
+          final names = _staffNames;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Digital Signature',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedSignature.value.isEmpty || !names.contains(_selectedSignature.value)
+                        ? (names.isNotEmpty ? names.first : null)
+                        : _selectedSignature.value,
+                    dropdownColor: AppColors.bgSecondary,
+                    isExpanded: true,
+                    hint: const Text(
+                      'Select Staff',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                    ),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                    items: names.map((n) => DropdownMenuItem(
+                      value: n,
+                      child: Text(n, style: const TextStyle(
+                        color: AppColors.textPrimary, fontSize: 13)),
+                    )).toList(),
+                    onChanged: (v) {
+                      if (v != null) _selectedSignature.value = v;
+                    },
+                  ),
+                ),
+              ),
+            ],
+          );
+        }),
       ],
     );
   }
@@ -934,19 +1027,22 @@ class _SplitPaymentRow extends StatefulWidget {
 class _SplitPaymentRowState extends State<_SplitPaymentRow> {
   late final BillingController ctrl;
   late final TextEditingController _amtCtrl;
+  late final TextEditingController _refCtrl;
   static const _modes = ['Cash', 'UPI', 'Card', 'RTGS/NEFT', 'Cheque'];
 
   @override
   void initState() {
     super.initState();
     ctrl = Get.find<BillingController>();
-    final initial = ctrl.splitPayments[widget.index].amount;
-    _amtCtrl = TextEditingController(text: initial > 0 ? '$initial' : '');
+    final entry = ctrl.splitPayments[widget.index];
+    _amtCtrl = TextEditingController(text: entry.amount > 0 ? '${entry.amount}' : '');
+    _refCtrl = TextEditingController(text: entry.reference ?? '');
   }
 
   @override
   void dispose() {
     _amtCtrl.dispose();
+    _refCtrl.dispose();
     super.dispose();
   }
 
@@ -965,110 +1061,142 @@ class _SplitPaymentRowState extends State<_SplitPaymentRow> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
-        child: Row(
+        child: Column(
           children: [
-            // Mode dropdown
-            Expanded(
-              flex: 2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.inputFill,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: split.mode,
-                    dropdownColor: AppColors.bgSecondary,
-                    isExpanded: true,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 12,
+            Row(
+              children: [
+                // Mode dropdown
+                Expanded(
+                  flex: 2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.inputFill,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border),
                     ),
-                    items: _modes
-                        .map(
-                          (m) => DropdownMenuItem(
-                            value: m,
-                            child: Text(
-                              m,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 12,
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: split.mode,
+                        dropdownColor: AppColors.bgSecondary,
+                        isExpanded: true,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 12,
+                        ),
+                        items: _modes
+                            .map(
+                              (m) => DropdownMenuItem(
+                                value: m,
+                                child: Text(
+                                  m,
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null)
-                        ctrl.updateSplitPayment(widget.index, mode: v);
-                    },
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null)
+                            ctrl.updateSplitPayment(widget.index, mode: v);
+                        },
+                      ),
+                    ),
                   ),
+                ),
+                const SizedBox(width: 8),
+
+                // Amount — stable controller, no flicker on any rebuild
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.inputFill,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: TextField(
+                      controller: _amtCtrl,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                      ),
+                      onChanged: (v) => ctrl.updateSplitPayment(
+                        widget.index,
+                        amount: int.tryParse(v) ?? 0,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Amount',
+                        hintStyle: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 9,
+                        ),
+                        prefixText: '₹ ',
+                        prefixStyle: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+
+                // Remove button
+                if (ctrl.splitPayments.length > 1)
+                  GestureDetector(
+                    onTap: () => ctrl.removeSplitPayment(widget.index),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        color: AppColors.error,
+                        size: 14,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            // Ref / Txn ID — mirrors Electron pay-split-ref input
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.inputFill,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: TextField(
+                controller: _refCtrl,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 12,
+                ),
+                onChanged: (v) => ctrl.updateSplitPayment(
+                  widget.index,
+                  reference: v.isEmpty ? null : v,
+                ),
+                decoration: const InputDecoration(
+                  hintText: 'Ref / Txn ID (optional)',
+                  hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  prefixIcon: Icon(Icons.tag_outlined, size: 14, color: AppColors.textMuted),
+                  prefixIconConstraints: BoxConstraints(minWidth: 28, minHeight: 28),
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-
-            // Amount — stable controller, no flicker on any rebuild
-            Expanded(
-              flex: 3,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.inputFill,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: TextField(
-                  controller: _amtCtrl,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 13,
-                  ),
-                  onChanged: (v) => ctrl.updateSplitPayment(
-                    widget.index,
-                    amount: int.tryParse(v) ?? 0,
-                  ),
-                  decoration: const InputDecoration(
-                    hintText: 'Amount',
-                    hintStyle: TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 12,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 9,
-                    ),
-                    prefixText: '₹ ',
-                    prefixStyle: TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-
-            // Remove button
-            if (ctrl.splitPayments.length > 1)
-              GestureDetector(
-                onTap: () => ctrl.removeSplitPayment(widget.index),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: const Icon(
-                    Icons.close,
-                    color: AppColors.error,
-                    size: 14,
-                  ),
-                ),
-              ),
           ],
         ),
       );

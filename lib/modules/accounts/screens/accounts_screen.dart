@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1004,39 +1005,9 @@ class _ReceivablesTab extends StatelessWidget {
               },
             )
             .toList();
-      } catch (_) {
-        receivables = [
-          {
-            'id': 'BIL003',
-            'customer': 'Anita Desai',
-            'phone': '+91 76543 21098',
-            'total': '₹5.98L',
-            'totalNum': 598500,
-            'remaining': 198500,
-            'dueDate': '2026-04-07',
-            'status': 'Partial',
-          },
-          {
-            'id': 'BIL004',
-            'customer': 'Vikram Singh',
-            'phone': '+91 65432 10987',
-            'total': '₹52,000',
-            'totalNum': 52000,
-            'remaining': 52000,
-            'dueDate': '2026-03-20',
-            'status': 'Pending',
-          },
-          {
-            'id': 'BIL005',
-            'customer': 'Meera Patel',
-            'phone': '+91 54321 09876',
-            'total': '₹1.98L',
-            'totalNum': 198000,
-            'remaining': 198000,
-            'dueDate': null,
-            'status': 'Pending',
-          },
-        ];
+      } catch (e) {
+        debugPrint('[AccountsScreen] receivables load failed: $e');
+        // No fallback — show empty state, real data only from API
       }
 
       final totalRec = receivables.fold<int>(

@@ -30,6 +30,7 @@ import 'package:acme_killer_mobile_app/modules/inventory/screens/transfer_invent
 import 'package:acme_killer_mobile_app/modules/module_not_available_screen.dart';
 import 'package:acme_killer_mobile_app/modules/rates_schemes/bindings/rates_schemes_binding.dart';
 import 'package:acme_killer_mobile_app/modules/rates_schemes/screens/old_gold_screen.dart';
+import 'package:acme_killer_mobile_app/modules/rates_schemes/screens/rate_board_screen.dart';
 import 'package:acme_killer_mobile_app/modules/rates_schemes/screens/schemes_screen.dart';
 import 'package:acme_killer_mobile_app/modules/rates_schemes/screens/today_rates_screen.dart';
 import 'package:acme_killer_mobile_app/modules/reports/bindings/reports_binding.dart';
@@ -247,6 +248,12 @@ class AppPages {
     GetPage(
       name: AppRoutes.todayRates,
       page: () => const TodayRatesScreen(),
+      binding: RatesSchemesBinding(),
+      middlewares: _middleware,
+    ),
+    GetPage(
+      name: AppRoutes.rateBoard,
+      page: () => const RateBoardScreen(),
       binding: RatesSchemesBinding(),
       middlewares: _middleware,
     ),

@@ -37,10 +37,10 @@ class DashboardScreen extends GetView<DashboardController> {
         titleSpacing: 0,
         title: Obx(() {
           final storeCtrl = Get.find<StoreController>();
-          final hasMultiStore = storeCtrl.stores.length > 1;
+          final hasMulti = storeCtrl.stores.length > 1;
           return GestureDetector(
-            // mirrors Electron: tap store name → open store switcher
-            onTap: hasMultiStore ? () => _showStoreSwitcher(storeCtrl) : null,
+            // Tap store name → store switcher bottom sheet
+            onTap: hasMulti ? () => _showStoreSwitcher(storeCtrl) : null,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -48,24 +48,31 @@ class DashboardScreen extends GetView<DashboardController> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Dashboard',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        )),
+                    const Text(
+                      'Dashboard',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(controller.storeName,
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 11,
-                            )),
-                        if (hasMultiStore) ...[
+                        Text(
+                          controller.storeName,
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 11,
+                          ),
+                        ),
+                        if (hasMulti) ...[
                           const SizedBox(width: 3),
-                          const Icon(Icons.keyboard_arrow_down_rounded,
-                              color: AppColors.textMuted, size: 14),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: AppColors.textMuted,
+                            size: 14,
+                          ),
                         ],
                       ],
                     ),
@@ -76,35 +83,6 @@ class DashboardScreen extends GetView<DashboardController> {
           );
         }),
         actions: [
-          // Demo badge
-          Obx(
-            () => controller.isDemo
-                ? Container(
-                    margin: const EdgeInsets.only(right: 4),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.warning.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: AppColors.warning.withOpacity(0.4),
-                      ),
-                    ),
-                    child: const Text(
-                      'DEMO',
-                      style: TextStyle(
-                        color: AppColors.warning,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          ),
-
           // Notification
           IconButton(
             icon: const Icon(
@@ -164,32 +142,21 @@ class DashboardScreen extends GetView<DashboardController> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Greeting ──
                 _greeting(),
                 const SizedBox(height: 18),
-
-                // ── Stats grid (2×2) ──
                 _sectionLabel('Overview'),
                 const SizedBox(height: 10),
                 _statsGrid(),
                 const SizedBox(height: 16),
-
-                // ── Alerts ──
                 _alerts(),
-
-                // ── Quick Actions ──
                 _sectionLabel('Quick Actions'),
                 const SizedBox(height: 10),
                 _quickActions(),
                 const SizedBox(height: 20),
-
-                // ── Modules grid ──
                 _sectionLabel('Modules'),
                 const SizedBox(height: 10),
                 _modulesGrid(),
                 const SizedBox(height: 20),
-
-                // ── Recent Invoices ──
                 _recentInvoicesHeader(),
                 const SizedBox(height: 10),
                 _recentInvoices(),
@@ -200,6 +167,159 @@ class DashboardScreen extends GetView<DashboardController> {
       ),
 
       bottomNavigationBar: _bottomNav(),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // STORE SWITCHER — bottom sheet (mirrors Electron store selector)
+  // ─────────────────────────────────────────────────────────
+  void _showStoreSwitcher(StoreController storeCtrl) {
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        decoration: const BoxDecoration(
+          color: AppColors.bgSecondary,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Switch Store',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Select a store to filter all data',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            // "All Stores" option
+            Obx(
+              () => _storeOption(
+                label: 'All Stores',
+                sub: '${storeCtrl.stores.length} locations',
+                icon: Icons.store_mall_directory_outlined,
+                isSelected: storeCtrl.selectedStore.value == null,
+                onTap: () {
+                  storeCtrl.changeStore(null);
+                  Get.back();
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Individual store options
+            ...storeCtrl.stores.map(
+              (s) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Obx(
+                  () => _storeOption(
+                    label: s.shortName,
+                    sub: s.name,
+                    icon: Icons.storefront_outlined,
+                    isSelected: storeCtrl.selectedStore.value?.id == s.id,
+                    onTap: () {
+                      storeCtrl.changeStore(s);
+                      Get.back();
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _storeOption({
+    required String label,
+    required String sub,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.goldPrimary.withOpacity(0.1)
+              : AppColors.bgCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.goldPrimary.withOpacity(0.5)
+                : AppColors.border,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: isSelected
+                  ? AppColors.goldPrimary
+                  : AppColors.textSecondary,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: isSelected
+                          ? AppColors.goldPrimary
+                          : AppColors.textPrimary,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      fontSize: 14,
+                    ),
+                  ),
+                  if (sub != label)
+                    Text(
+                      sub,
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              const Icon(
+                Icons.check_rounded,
+                color: AppColors.goldPrimary,
+                size: 18,
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -272,7 +392,7 @@ class DashboardScreen extends GetView<DashboardController> {
   }
 
   // ─────────────────────────────────────────────────────────
-  // STATS GRID  (2 columns, matches desktop 4 stat cards)
+  // STATS GRID
   // ─────────────────────────────────────────────────────────
   Widget _statsGrid() {
     return Obx(
@@ -322,40 +442,29 @@ class DashboardScreen extends GetView<DashboardController> {
   }
 
   // ─────────────────────────────────────────────────────────
-  // ALERTS (mirrors alerts-banner in dashboard.js)
+  // ALERTS
   // ─────────────────────────────────────────────────────────
   Widget _alerts() {
     return Obx(() {
-      final hasLowStock  = controller.lowStockAlerts.value > 0;
-      final hasOutOfStock = controller.outOfStockCount.value > 0;
-      final hasPending   = controller.pendingDueCount.value > 0;
-      if (!hasLowStock && !hasOutOfStock && !hasPending) return const SizedBox.shrink();
+      final hasLowStock = controller.lowStockAlerts.value > 0;
+      final hasPending = controller.pendingDueCount.value > 0;
+      if (!hasLowStock && !hasPending) return const SizedBox.shrink();
       return Column(
         children: [
-          // mirrors Electron: lowStockItems alert
           if (hasLowStock)
             AlertBanner(
-              message: '${controller.lowStockAlerts.value} items are low in stock',
+              message:
+                  '${controller.lowStockAlerts.value} items are low in stock',
               color: AppColors.warning,
               icon: Icons.warning_amber_rounded,
               actionLabel: 'View',
               onAction: () => Get.toNamed(AppRoutes.inventory),
             ),
-          if (hasLowStock && hasOutOfStock) const SizedBox(height: 8),
-          // mirrors Electron: outOfStockItems alert (red, separate from low stock)
-          if (hasOutOfStock)
-            AlertBanner(
-              message: '${controller.outOfStockCount.value} items out of stock',
-              color: AppColors.error,
-              icon: Icons.remove_shopping_cart_outlined,
-              actionLabel: 'View',
-              onAction: () => Get.toNamed(AppRoutes.inventory),
-            ),
-          if ((hasLowStock || hasOutOfStock) && hasPending) const SizedBox(height: 8),
-          // mirrors Electron: pendingInvoices alert
+          if (hasLowStock && hasPending) const SizedBox(height: 8),
           if (hasPending)
             AlertBanner(
-              message: '${controller.pendingDueCount.value} invoices pending — ${controller.formatCurrency(controller.pendingDueAmount.value)} outstanding',
+              message:
+                  '${controller.pendingDueCount.value} invoices pending — ${controller.formatCurrency(controller.pendingDueAmount.value)} outstanding',
               color: AppColors.error,
               icon: Icons.schedule_rounded,
               actionLabel: 'View',
@@ -368,7 +477,7 @@ class DashboardScreen extends GetView<DashboardController> {
   }
 
   // ─────────────────────────────────────────────────────────
-  // QUICK ACTIONS horizontal scroll
+  // QUICK ACTIONS
   // ─────────────────────────────────────────────────────────
   Widget _quickActions() {
     return Obx(
@@ -376,25 +485,26 @@ class DashboardScreen extends GetView<DashboardController> {
         height: 105,
         child: ListView(
           scrollDirection: Axis.horizontal,
-          children: controller.quickActions.map((a) {
-            return QuickActionCard(
-              title: a.label,
-              icon: a.iconCode,
-              color: Color(a.color),
-              onTap: () => Get.toNamed(a.route),
-            );
-          }).toList(),
+          children: controller.quickActions
+              .map(
+                (a) => QuickActionCard(
+                  title: a.label,
+                  icon: a.iconCode,
+                  color: Color(a.color),
+                  onTap: () => Get.toNamed(a.route),
+                ),
+              )
+              .toList(),
         ),
       ),
     );
   }
 
   // ─────────────────────────────────────────────────────────
-  // MODULES GRID (mirrors modules array in dashboard.js)
+  // MODULES GRID
   // ─────────────────────────────────────────────────────────
   Widget _modulesGrid() {
     final auth = Get.find<AuthController>();
-
     final modules = <_ModuleDef>[
       _ModuleDef(
         'Inventory',
@@ -426,7 +536,7 @@ class DashboardScreen extends GetView<DashboardController> {
       _ModuleDef(
         'Accounts',
         'CR/DR ledger, expenses & bank reconciliation',
-        '230 entries',
+        '',
         AppRoutes.accounts,
         Icons.account_balance_wallet_outlined,
         const Color(0xFFC084FC),
@@ -444,7 +554,7 @@ class DashboardScreen extends GetView<DashboardController> {
       _ModuleDef(
         'Old Gold',
         'Purchase & exchange old gold with purity testing',
-        '15 entries',
+        '',
         AppRoutes.oldGold,
         Icons.repeat_rounded,
         const Color(0xFFFB923C),
@@ -453,7 +563,7 @@ class DashboardScreen extends GetView<DashboardController> {
       _ModuleDef(
         'Schemes',
         'Monthly savings schemes & member tracking',
-        '3 active',
+        '',
         AppRoutes.schemes,
         Icons.card_giftcard_outlined,
         const Color(0xFF34D399),
@@ -472,22 +582,12 @@ class DashboardScreen extends GetView<DashboardController> {
         _ModuleDef(
           'Staff',
           'Permissions, attendance & payroll',
-          '4 members',
+          '',
           AppRoutes.staff,
           Icons.badge_outlined,
           const Color(0xFFF472B6),
           'staff',
         ),
-      // mirrors Electron: enquiries module in sidebar + modules grid
-      _ModuleDef(
-        'Enquiries',
-        'Customer enquiries from mobile app',
-        '',
-        AppRoutes.enquiries,
-        Icons.question_answer_outlined,
-        const Color(0xFF818CF8),
-        'enquiries',
-      ),
     ];
 
     return GridView.builder(
@@ -577,10 +677,7 @@ class DashboardScreen extends GetView<DashboardController> {
               .map(
                 (inv) => RecentInvoiceRow(
                   invoice: inv,
-                  // mirrors Electron: onclick navigate to invoiceDetail with id
-                  // Dashboard uses DashInvoice, not full Invoice model
-                  // → navigate to billing list so user can tap the full invoice
-                  onTap: () => Get.toNamed(AppRoutes.billing),
+                  onTap: () => Get.toNamed(AppRoutes.invoiceDetail),
                 ),
               )
               .toList(),
@@ -645,130 +742,8 @@ class DashboardScreen extends GetView<DashboardController> {
     );
   }
 
-  // ── Store switcher bottom sheet ──
-  // mirrors Electron: topbar store selector dropdown
-  // Owner can switch between All Stores / individual stores
-  void _showStoreSwitcher(StoreController storeCtrl) {
-    Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
-        decoration: const BoxDecoration(
-          color: AppColors.bgSecondary,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36, height: 4,
-                decoration: BoxDecoration(
-                    color: AppColors.border, borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text('Switch Store',
-                style: TextStyle(color: AppColors.textPrimary,
-                    fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            const Text('Select the store to view data for',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-            const SizedBox(height: 16),
-
-            // All Stores option (owner only)
-            Obx(() {
-              final selected = storeCtrl.selectedStore.value;
-              return Column(
-                children: [
-                  // All Stores
-                  _storeOption(
-                    label: 'All Stores',
-                    sub: 'View combined data from all stores',
-                    icon: Icons.store_mall_directory_outlined,
-                    isSelected: selected == null,
-                    onTap: () {
-                      storeCtrl.changeStore(null);
-                      Get.back();
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  // Individual stores
-                  ...storeCtrl.stores.map((s) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _storeOption(
-                      label: s.shortName,
-                      sub: s.name,
-                      icon: Icons.store_outlined,
-                      isSelected: selected?.id == s.id,
-                      onTap: () {
-                        storeCtrl.changeStore(s);
-                        Get.back();
-                      },
-                    ),
-                  )),
-                ],
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _storeOption({
-    required String label,
-    required String sub,
-    required IconData icon,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.goldPrimary.withOpacity(0.1)
-              : AppColors.bgCard,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? AppColors.goldPrimary.withOpacity(0.5)
-                : AppColors.border,
-            width: isSelected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(children: [
-          Icon(icon,
-              color: isSelected ? AppColors.goldPrimary : AppColors.textSecondary,
-              size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(label,
-                  style: TextStyle(
-                    color: isSelected ? AppColors.goldPrimary : AppColors.textPrimary,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                    fontSize: 14,
-                  )),
-              if (sub != label)
-                Text(sub,
-                    style: const TextStyle(
-                        color: AppColors.textMuted, fontSize: 11),
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-            ]),
-          ),
-          if (isSelected)
-            const Icon(Icons.check_rounded, color: AppColors.goldPrimary, size: 18),
-        ]),
-      ),
-    );
-  }
-
   // ─────────────────────────────────────────────────────────
-  // MODULES BOTTOM SHEET (tapping Modules in bottom nav)
+  // MODULES BOTTOM SHEET
   // ─────────────────────────────────────────────────────────
   void _showModulesSheet() {
     Get.bottomSheet(
@@ -833,11 +808,17 @@ class DashboardScreen extends GetView<DashboardController> {
                   'Schemes',
                   AppRoutes.schemes,
                 ),
-                _sheetItem(Icons.bar_chart_rounded, 'Reports', AppRoutes.reports),
-                // mirrors Electron: enquiries in sidebar between Reports and Staff
-                _sheetItem(Icons.question_answer_outlined, 'Enquiries', AppRoutes.enquiries),
+                _sheetItem(
+                  Icons.bar_chart_rounded,
+                  'Reports',
+                  AppRoutes.reports,
+                ),
                 _sheetItem(Icons.badge_outlined, 'Staff', AppRoutes.staff),
-                _sheetItem(Icons.settings_outlined, 'Settings', AppRoutes.settings),
+                _sheetItem(
+                  Icons.settings_outlined,
+                  'Settings',
+                  AppRoutes.settings,
+                ),
               ],
             ),
           ],
@@ -878,7 +859,6 @@ class DashboardScreen extends GetView<DashboardController> {
     );
   }
 
-  // ── Helper ──
   Widget _sectionLabel(String text) => Text(
     text,
     style: const TextStyle(

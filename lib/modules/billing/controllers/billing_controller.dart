@@ -17,12 +17,14 @@ import '../../../services/api_client.dart';
 
 // ════════════════════════════════════════════════════════════════════
 // SplitPaymentEntry — one row in the split payments array
-// mirrors Electron: splitPayments = [{mode:'Cash',amount:50000},{mode:'UPI',amount:30000}]
+// mirrors Electron: splitPayments = [{mode:'Cash',amount:50000,reference:'TXN123'}]
 // ════════════════════════════════════════════════════════════════════
 class SplitPaymentEntry {
   String mode;
   int amount;
-  SplitPaymentEntry({this.mode = 'Cash', this.amount = 0});
+  String?
+  reference; // UPI Txn ID / cheque no / UTR — mirrors Electron pay-split-ref
+  SplitPaymentEntry({this.mode = 'Cash', this.amount = 0, this.reference});
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -144,7 +146,6 @@ class BillingController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _seedDemoData();
     _fetchFromApi();
     // Refresh when user switches store
     ever(_store.selectedStore, (_) {
@@ -352,31 +353,78 @@ class BillingController extends GetxController {
   Future<bool> createInvoiceViaApi({
     required dynamic customerId,
     required String customerName,
+    required int subtotal,
     required int total,
     required int gstAmount,
     required int discountAmount,
     required String paymentMode,
     required String paymentStatus,
     required List<Map<String, dynamic>> lineItems,
+    required List<Map<String, dynamic>> splitPaymentsData,
+    required int paidAmount,
+    int gstRate = 3,
     String? dueDate,
     String? notes,
+    String? digitalSignature,
+    List<Map<String, dynamic>> oldGoldItems = const [],
+    int oldGoldAdjustment = 0,
   }) async {
     try {
       final billing = Get.find<BillingService>();
       final ledger = Get.find<LedgerService>();
 
+      // mirrors Electron payModeMap
+      const payModeMap = {
+        'Cash': 'CASH',
+        'UPI': 'UPI',
+        'Card': 'CARD',
+        'RTGS/NEFT': 'BANK_TRANSFER',
+        'Cheque': 'BANK_TRANSFER',
+      };
+
+      final cgst = (gstAmount / 2).round();
+      final sgst = gstAmount - cgst;
+
       final payload = {
-        // Backend expects Long — parse from string if needed
         'customerId': int.tryParse(customerId.toString()) ?? customerId,
         'customerName': customerName,
-        'paymentMode': paymentMode,
-        'paymentStatus': paymentStatus,
-        'total': total,
+        // Invoice metadata — mirrors Electron apiPayload
+        'date': DateTime.now().toIso8601String().substring(0, 10),
+        'invoiceDate': DateTime.now().toIso8601String().substring(0, 10),
+        'invoiceType': 'TAX_INVOICE',
+        'items': lineItems,
+        // Amounts
+        'subtotal': subtotal,
+        'gstRate': gstRate,
         'gstAmount': gstAmount,
+        'cgstAmount': cgst,
+        'sgstAmount': sgst,
+        'igstAmount': 0,
         'discount': discountAmount,
+        'roundOff': 0,
+        'total': total,
+        'totalAmount': total,
+        // Old gold
+        'oldGoldAdjustment': oldGoldAdjustment,
+        'oldGoldItems': oldGoldItems,
+        // Payment
+        'paidAmount': paidAmount,
+        'paymentMode': payModeMap[paymentMode] ?? 'CASH',
+        'paymentStatus': paymentStatus,
+        'splitPayments': splitPaymentsData
+            .map(
+              (s) => {
+                'mode': payModeMap[s['mode']] ?? s['mode'] ?? 'CASH',
+                'amount': s['amount'],
+                'reference': s['reference'],
+              },
+            )
+            .toList(),
+        // Misc
         'dueDate': dueDate,
         'notes': notes ?? '',
-        'items': lineItems,
+        'digitalSignature': digitalSignature ?? '',
+        'status': 'CONFIRMED',
       };
 
       final result = await billing.createInvoice(payload);
@@ -386,7 +434,6 @@ class BillingController extends GetxController {
 
       // ── Auto-create ledger entries (mirrors Electron billing.js) ──
       if (backendId != null) {
-        // DR entry (charge to customer)
         await ledger.create({
           'type': 'DR',
           'party': customerName,
@@ -395,7 +442,6 @@ class BillingController extends GetxController {
           'category': 'Sales',
           'description': 'Invoice #$backendId',
         });
-        // CR entry if paid now
         if (paymentStatus == 'PAID') {
           await ledger.create({
             'type': 'CR',
@@ -487,12 +533,22 @@ class BillingController extends GetxController {
   Future<bool> recordPaymentViaApi(
     dynamic backendId,
     int amount,
-    String mode,
-  ) async {
+    String mode, {
+    String? reference,
+  }) async {
     try {
+      const payModeMap = {
+        'Cash': 'CASH',
+        'UPI': 'UPI',
+        'Card': 'CARD',
+        'RTGS/NEFT': 'BANK_TRANSFER',
+        'Cheque': 'BANK_TRANSFER',
+      };
       final r = await Get.find<BillingService>().recordPayment(backendId, {
         'amount': amount,
-        'mode': mode,
+        'paymentMode': payModeMap[mode] ?? 'CASH',
+        'reference': reference,
+        'date': DateTime.now().toIso8601String().substring(0, 10),
       });
       if (r.success) _fetchFromApi();
       return r.success;
@@ -619,11 +675,17 @@ class BillingController extends GetxController {
     }
   }
 
-  void updateSplitPayment(int index, {String? mode, int? amount}) {
+  void updateSplitPayment(
+    int index, {
+    String? mode,
+    int? amount,
+    String? reference,
+  }) {
     if (index >= splitPayments.length) return;
     final entry = splitPayments[index];
     if (mode != null) entry.mode = mode;
     if (amount != null) entry.amount = amount;
+    if (reference != null) entry.reference = reference;
     splitPayments.refresh();
   }
 
@@ -847,150 +909,5 @@ class BillingController extends GetxController {
       allBills[idx] = allBills[idx].copyWith(status: 'Cancelled');
       allBills.refresh();
     }
-  }
-
-  // ── Demo seed ──
-  void _seedDemoData() {
-    allBills.assignAll([
-      Invoice(
-        id: 'BIL001',
-        customer: 'Priya Sharma',
-        customerId: 'CUS001',
-        date: DateTime(2026, 3, 9),
-        paymentMode: 'UPI',
-        status: 'Paid',
-        store: 'Rajmahal Jewellers - Main',
-        subtotal: 353324,
-        gst: 10928,
-        discount: 0,
-        roundOff: -2,
-        total: 364250,
-        type: BillingType.invoice,
-        items: [
-          BillingItem(
-            name: '22K Gold Necklace',
-            weight: 45.5,
-            rate: 6285,
-            making: 12,
-          ),
-        ],
-        digitalSignature: 'Arjun Kapoor',
-      ),
-      Invoice(
-        id: 'BIL002',
-        customer: 'Rahul Mehta',
-        customerId: 'CUS002',
-        date: DateTime(2026, 3, 8),
-        paymentMode: 'Card',
-        status: 'Paid',
-        store: 'Rajmahal Jewellers - Mall Road',
-        subtotal: 140650,
-        gst: 4350,
-        discount: 0,
-        roundOff: 0,
-        total: 145000,
-        type: BillingType.invoice,
-        items: [
-          BillingItem(
-            name: 'Platinum Wedding Band',
-            weight: 6.0,
-            rate: 18500,
-            making: 18,
-          ),
-        ],
-      ),
-      Invoice(
-        id: 'BIL003',
-        customer: 'Anita Desai',
-        customerId: 'CUS003',
-        date: DateTime(2026, 3, 7),
-        paymentMode: 'Cash + UPI',
-        status: 'Partial',
-        store: 'Rajmahal Jewellers - Main',
-        subtotal: 580545,
-        gst: 17955,
-        discount: 0,
-        roundOff: 0,
-        total: 598500,
-        paidAmount: 400000,
-        type: BillingType.invoice,
-        dueDate: '2026-04-07',
-        notes: 'Remaining ₹1,98,500 due April 7',
-        items: [
-          BillingItem(
-            name: 'Kundan Bridal Set',
-            weight: 85,
-            rate: 5140,
-            making: 16,
-          ),
-        ],
-      ),
-      Invoice(
-        id: 'BIL004',
-        customer: 'Vikram Singh',
-        customerId: 'CUS004',
-        date: DateTime(2026, 3, 5),
-        paymentMode: 'Cash',
-        status: 'Pending',
-        store: 'Rajmahal Jewellers - City Center',
-        subtotal: 50485,
-        gst: 1515,
-        discount: 0,
-        roundOff: 0,
-        total: 52000,
-        type: BillingType.invoice,
-        dueDate: '2026-03-20',
-        items: [
-          BillingItem(name: 'Silver Chain', weight: 35, rate: 92, making: 10),
-        ],
-      ),
-      Invoice(
-        id: 'EST001',
-        customer: 'Suresh Kumar',
-        customerId: 'CUS005',
-        date: DateTime(2026, 3, 6),
-        paymentMode: '—',
-        status: 'Draft',
-        store: 'Rajmahal Jewellers - Mall Road',
-        subtotal: 407767,
-        gst: 12233,
-        discount: 0,
-        roundOff: 0,
-        total: 420000,
-        type: BillingType.estimate,
-        items: [
-          BillingItem(
-            name: 'Diamond Solitaire Ring',
-            weight: 3.5,
-            rate: 45000,
-            making: 20,
-          ),
-        ],
-      ),
-      Invoice(
-        id: 'CN001',
-        customer: 'Kavita Nair',
-        customerId: 'CUS006',
-        date: DateTime(2026, 3, 3),
-        paymentMode: 'Cash Refund',
-        status: 'Processed',
-        store: 'Rajmahal Jewellers - Main',
-        subtotal: 17961,
-        gst: 539,
-        discount: 0,
-        roundOff: 0,
-        total: 18500,
-        type: BillingType.creditNote,
-        notes: 'Design Issue. Customer returned necklace.',
-        items: [
-          BillingItem(
-            name: '18K Gold Chain (Returned)',
-            weight: 10,
-            rate: 5140,
-            making: 13,
-          ),
-        ],
-      ),
-    ]);
   }
 }

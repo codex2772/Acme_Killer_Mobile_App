@@ -106,7 +106,6 @@ class SettingsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _seedDefaults();
     _loadFromApi();
   }
 
@@ -365,96 +364,4 @@ class SettingsController extends GetxController {
   }
 
   int get storeCount => 3;
-
-  void _seedDefaults() {
-    activityLogs.assignAll([
-      ActivityLog(
-        id: 'AL001',
-        timestamp: '2026-03-12 10:30:15',
-        user: 'Arjun Kapoor',
-        action: 'Created Invoice',
-        detail: 'Invoice #BIL001 for Priya Sharma — ₹3,64,250',
-        module: 'Billing',
-        store: 'Main',
-      ),
-      ActivityLog(
-        id: 'AL002',
-        timestamp: '2026-03-12 09:45:00',
-        user: 'System',
-        action: 'Rate Updated',
-        detail: 'Gold 22K: ₹6,270 → ₹6,285 (+₹15)',
-        module: 'Rates',
-        store: 'All',
-      ),
-    ]);
-    categories.assignAll([
-      CategoryItem(
-        id: '1',
-        name: 'Necklace',
-        description: 'All types of necklaces',
-      ),
-      CategoryItem(id: '2', name: 'Ring', description: 'Rings and bands'),
-      CategoryItem(
-        id: '3',
-        name: 'Earring',
-        description: 'Studs, hoops, jhumkas',
-      ),
-      CategoryItem(id: '4', name: 'Bangle', description: 'Bangles and kadas'),
-      CategoryItem(
-        id: '5',
-        name: 'Chain',
-        description: 'Gold and silver chains',
-      ),
-      CategoryItem(
-        id: '6',
-        name: 'Pendant',
-        description: 'Pendants and lockets',
-      ),
-      CategoryItem(
-        id: '7',
-        name: 'Set',
-        description: 'Matching jewellery sets',
-      ),
-      CategoryItem(id: '8', name: 'Anklet', description: 'Payal and anklets'),
-      CategoryItem(
-        id: '9',
-        name: 'Mangalsutra',
-        description: 'Traditional mangalsutras',
-      ),
-    ]);
-    metalTypes.assignAll([
-      MetalTypeItem(
-        id: '1',
-        name: 'Gold 24K',
-        description: '24 Karat pure gold',
-      ),
-      MetalTypeItem(
-        id: '2',
-        name: 'Gold 22K',
-        description: '22 Karat hallmarked gold',
-      ),
-      MetalTypeItem(id: '3', name: 'Gold 18K', description: '18 Karat gold'),
-      MetalTypeItem(id: '4', name: 'Gold 14K', description: '14 Karat gold'),
-      MetalTypeItem(
-        id: '5',
-        name: 'Silver 925',
-        description: 'Sterling silver',
-      ),
-      MetalTypeItem(
-        id: '6',
-        name: 'Platinum 950',
-        description: '950 grade platinum',
-      ),
-      MetalTypeItem(
-        id: '7',
-        name: 'Rose Gold 18K',
-        description: 'Rose gold alloy',
-      ),
-      MetalTypeItem(
-        id: '8',
-        name: 'White Gold 18K',
-        description: 'White gold alloy',
-      ),
-    ]);
-  }
 }

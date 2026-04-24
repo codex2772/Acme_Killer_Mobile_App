@@ -90,9 +90,10 @@ class AuthService extends GetxService {
       } catch (_) {}
       return AuthResult.fail(errorMsg);
     } catch (e) {
-      // ── Network error (timeout, DNS, no internet) → demo mode ──
-      // Mirrors Electron: when net.isOnline() is false
-      return _demoLogin(mobile, password);
+      // Network error (timeout, DNS, no internet) → fail cleanly
+      return AuthResult.fail(
+        'Unable to connect to server. Please check your internet connection.',
+      );
     }
   }
 
@@ -229,11 +230,9 @@ class AuthService extends GetxService {
     final savedAccess = await _storage.getAccessToken();
     final savedRefresh = await _storage.getRefreshToken();
 
-    // Demo session — restore with demo tokens (no API calls possible)
+    // No refresh token or stale session — require fresh login
     if (savedRefresh == null || savedRefresh == 'demo') {
-      _accessToken = savedAccess;
-      _refreshToken = savedRefresh;
-      return AuthResult.ok(saved, isDemo: savedRefresh == 'demo');
+      return AuthResult.fail('Session expired. Please login again.');
     }
 
     // Real session — try to refresh the access token
@@ -275,9 +274,10 @@ class AuthService extends GetxService {
         _refreshToken = savedRefresh;
         return AuthResult.ok(saved);
       }
-      return AuthResult.ok(saved, isDemo: true);
+      // Network error during session restore — session expired or unreachable
+      return AuthResult.fail('Session expired. Please login again.');
     }
-    return AuthResult.fail('Session expired');
+    return AuthResult.fail('Session expired. Please login again.');
   }
 
   // ── CHANGE PASSWORD ───────────────────────────────────────────────────────

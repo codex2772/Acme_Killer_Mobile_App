@@ -78,57 +78,11 @@ class DashboardController extends GetxController {
   String get role => _auth.role;
   bool get isOwner => _auth.isOwner;
   bool get isAdmin => _auth.isAdmin;
-  bool get isDemo => _auth.isDemo.value;
   String get userName => _auth.userName;
   String get storeName => _store.activeLabel;
 
-  final RxList<DashInvoice> _invoiceList = <DashInvoice>[
-    const DashInvoice(
-      id: 'BIL001',
-      customer: 'Priya Sharma',
-      amount: 364250,
-      status: 'Paid',
-      date: '2026-03-09',
-      store: 'Rajmahal Jewellers - Main',
-      type: 'invoice',
-    ),
-    const DashInvoice(
-      id: 'BIL002',
-      customer: 'Rahul Mehta',
-      amount: 145000,
-      status: 'Paid',
-      date: '2026-03-08',
-      store: 'Rajmahal Jewellers - Mall Road',
-      type: 'invoice',
-    ),
-    const DashInvoice(
-      id: 'BIL003',
-      customer: 'Anita Desai',
-      amount: 598500,
-      status: 'Partial',
-      date: '2026-03-07',
-      store: 'Rajmahal Jewellers - Main',
-      type: 'invoice',
-    ),
-    const DashInvoice(
-      id: 'BIL004',
-      customer: 'Vikram Singh',
-      amount: 52000,
-      status: 'Pending',
-      date: '2026-03-05',
-      store: 'Rajmahal Jewellers - City Center',
-      type: 'invoice',
-    ),
-    const DashInvoice(
-      id: 'BIL005',
-      customer: 'Meera Patel',
-      amount: 198000,
-      status: 'Pending',
-      date: '2026-03-04',
-      store: 'Rajmahal Jewellers - Main',
-      type: 'invoice',
-    ),
-  ].obs;
+  final RxList<DashInvoice> _invoiceList =
+      <DashInvoice>[].obs; // populated from API
 
   List<DashInvoice> get invoices {
     final sel = _store.selectedStoreName;

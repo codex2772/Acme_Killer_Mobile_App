@@ -323,88 +323,16 @@ class ReportsController extends GetxController {
   ];
 
   static const makingChargeInvoices = [
-    {
-      'id': 'BIL001',
-      'customer': 'Priya Sharma',
-      'subtotal': 353324,
-      'mc': 42399,
-      'date': '2026-03-09',
-    },
-    {
-      'id': 'BIL002',
-      'customer': 'Rahul Mehta',
-      'subtotal': 140650,
-      'mc': 16878,
-      'date': '2026-03-08',
-    },
-    {
-      'id': 'BIL003',
-      'customer': 'Anita Desai',
-      'subtotal': 580545,
-      'mc': 69665,
-      'date': '2026-03-07',
-    },
+    // No fallback data — API only
   ];
   static const outstandingDues = [
-    {
-      'id': 'BIL003',
-      'customer': 'Anita Desai',
-      'total': '₹5.98L',
-      'totalNum': 598500,
-      'dueDate': '2026-04-07',
-      'status': 'Partial',
-      'daysOverdue': 0,
-    },
-    {
-      'id': 'BIL004',
-      'customer': 'Vikram Singh',
-      'total': '₹52,000',
-      'totalNum': 52000,
-      'dueDate': '2026-03-20',
-      'status': 'Pending',
-      'daysOverdue': 0,
-    },
+    // No fallback data — API only
   ];
   static const gstInvoices = [
-    {
-      'id': 'BIL001',
-      'customer': 'Priya Sharma',
-      'taxable': 353324,
-      'gst': 10600,
-      'total': 364250,
-    },
-    {
-      'id': 'BIL002',
-      'customer': 'Rahul Mehta',
-      'taxable': 140650,
-      'gst': 4350,
-      'total': 145000,
-    },
-    {
-      'id': 'BIL003',
-      'customer': 'Anita Desai',
-      'taxable': 580545,
-      'gst': 17455,
-      'total': 598500,
-    },
+    // No fallback data — API only
   ];
   static const dayBookEntries = [
-    {
-      'time': '10:15 AM',
-      'type': 'CR',
-      'party': 'Priya Sharma',
-      'desc': 'Bill #BIL001',
-      'amount': '₹3,64,250',
-      'mode': 'UPI',
-    },
-    {
-      'time': '11:30 AM',
-      'type': 'CR',
-      'party': 'Rahul Mehta',
-      'desc': 'Bill #BIL002',
-      'amount': '₹1,45,000',
-      'mode': 'Card',
-    },
+    // No fallback data — API only
     {
       'time': '12:45 PM',
       'type': 'DR',

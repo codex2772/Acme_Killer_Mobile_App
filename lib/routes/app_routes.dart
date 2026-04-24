@@ -36,6 +36,7 @@ abstract class AppRoutes {
   static const reportDetail       = '/report-detail';
 
   static const todayRates         = '/today-rates';
+  static const rateBoard          = '/rate-board'; 
   static const oldGold            = '/old-gold';
   static const addOldGold         = '/add-old-gold';
   static const oldGoldDetail      = '/old-gold-detail';

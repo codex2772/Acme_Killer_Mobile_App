@@ -4,7 +4,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/controllers/auth_controller.dart';
 import '../../../models/billing/billing_item_model.dart'
     show BillingItem, MakingType;
 import '../../../models/billing/invoice_model.dart';
@@ -502,8 +501,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   // ACTION BUTTONS
   // ════════════════════════════════════════════════════════════════
   Widget _actionButtons(Invoice inv, BillingController ctrl) {
-    final auth = Get.find<AuthController>();
-    final isLive = !auth.isDemo.value;
+    const isLive = true; // always call API — no demo mode
     return Wrap(
       spacing: 10,
       runSpacing: 10,

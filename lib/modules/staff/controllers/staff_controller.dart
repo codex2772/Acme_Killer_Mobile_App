@@ -1,7 +1,8 @@
 import 'package:get/get.dart';
 import '../../../models/staff/staff_model.dart';
 import '../../../models/staff/attendance_model.dart';
-import '../../../services/api_service.dart';
+import '../../../core/controllers/store_controller.dart';
+import '../../../services/staff_service.dart';
 
 // ════════════════════════════════════════════════════════════════
 // PERMISSION DEFINITIONS
@@ -78,19 +79,32 @@ class StaffController extends GetxController {
   final RxBool isLoading = false.obs;
   List<Staff>? _apiStaff; // cache of last API fetch
 
-  // ── Available stores (mirrors Electron's state.stores) ──────
-  static const List<String> kStores = [
-    'Rajmahal Jewellers - Main',
-    'Rajmahal Jewellers - Mall Road',
-    'Rajmahal Jewellers - City Center',
-  ];
+  // ── Available stores — dynamically from StoreController (mirrors Electron state.storeObjects) ──
+  // Falls back to hardcoded defaults only if StoreController not yet ready
+  static List<String> get kStores {
+    try {
+      final stores = Get.find<StoreController>().stores;
+      if (stores.isNotEmpty) return stores.map((s) => s.name).toList();
+    } catch (_) {}
+    return [
+      'Rajmahal Jewellers - Main',
+      'Rajmahal Jewellers - Mall Road',
+      'Rajmahal Jewellers - City Center',
+    ];
+  }
 
-  // ── Store ID lookup (mirrors state.storeObjects) ─────────────
-  static const Map<String, int> kStoreIds = {
-    'Rajmahal Jewellers - Main': 1,
-    'Rajmahal Jewellers - Mall Road': 2,
-    'Rajmahal Jewellers - City Center': 3,
-  };
+  // ── Store ID lookup — dynamically from StoreController ──
+  static Map<String, int> get kStoreIds {
+    try {
+      final stores = Get.find<StoreController>().stores;
+      if (stores.isNotEmpty) return {for (final s in stores) s.name: s.id};
+    } catch (_) {}
+    return {
+      'Rajmahal Jewellers - Main': 1,
+      'Rajmahal Jewellers - Mall Road': 2,
+      'Rajmahal Jewellers - City Center': 3,
+    };
+  }
 
   @override
   void onInit() {
@@ -332,7 +346,7 @@ class StaffController extends GetxController {
   /// Fetch staff list from backend.
   /// Mirrors Electron: window.jewelERP.staff.list() → GET /api/staff
   Future<bool> fetchFromApi() async {
-    final result = await Get.find<ApiService>().staffList();
+    final result = await Get.find<StaffService>().list();
     if (result.success && result.data is List) {
       final fetched = (result.data as List)
           .map((s) => Staff.fromBackend(s as Map<String, dynamic>))
@@ -351,26 +365,28 @@ class StaffController extends GetxController {
     String password,
   ) async {
     final storeId = kStoreIds[s.store] ?? 1;
-    final payload = s.toBackendPayload(storeIds: [storeId], password: password);
-    final result = await Get.find<ApiService>().staffCreate(payload);
+    final payload = s.toCreatePayload(storeIds: [storeId], password: password);
+    final result = await Get.find<StaffService>().create(payload);
     return (success: result.success, error: result.error);
   }
 
   /// Update staff via backend.
   /// Mirrors Electron: window.jewelERP.staff.update(id, payload) → PUT /api/staff/:id
+  ///
+  /// CRITICAL: Do NOT send storeIds on update — Electron never sends it.
+  /// Sending storeIds resets store assignments → user disappears from other stores.
   Future<({bool success, String? error})> updateViaApi(Staff s) async {
     final backendId = s.backendId;
     if (backendId == null) return (success: false, error: 'No backend ID');
-    final storeId = kStoreIds[s.store] ?? 1;
-    final payload = s.toBackendPayload(storeIds: [storeId]);
-    final result = await Get.find<ApiService>().staffUpdate(backendId, payload);
+    final payload = s.toUpdatePayload(); // ← no storeIds
+    final result = await Get.find<StaffService>().update(backendId, payload);
     return (success: result.success, error: result.error);
   }
 
   /// Deactivate staff via backend.
   /// Mirrors Electron: window.jewelERP.staff.delete(id) → DELETE /api/staff/:id
   Future<bool> deactivateViaApi(String backendId) async {
-    final result = await Get.find<ApiService>().staffDelete(backendId);
+    final result = await Get.find<StaffService>().delete(backendId);
     return result.success;
   }
 
